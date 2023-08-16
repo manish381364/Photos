@@ -62,9 +62,7 @@ fun HomeScreen(
         ) {
             HomeScreenBottomBar(
                 Modifier,
-                navHostController,
                 currentScreen,
-                visibility = bottomBarVisibility
             )
         }
     }

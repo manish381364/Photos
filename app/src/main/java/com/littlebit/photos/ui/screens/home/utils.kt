@@ -197,7 +197,7 @@ fun DateWithMarkButton(
 
 
 const val profile_image =
-    "https://www.nicepng.com/png/full/182-1829287_cammy-lin-ux-designer-circle-picture-profile-girl.png"
+    "https://w0.peakpx.com/wallpaper/343/852/HD-wallpaper-iphone-planet-amoled-apple-galaxy-gold-life-space-strange-ultra.jpg"
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -280,7 +280,8 @@ fun HomeScreenTopBar(
                         androidx.compose.animation.AnimatedVisibility(visible = isImageLoading.value) {
                             CircularProgressIndicator(
                                 Modifier
-                                    .size(30.dp)
+                                    .size(20.dp),
+                                strokeWidth = 2.dp
                             )
                         }
                     }
@@ -294,9 +295,7 @@ fun HomeScreenTopBar(
 @Composable
 fun HomeScreenBottomBar(
     modifier: Modifier = Modifier,
-    navHostController: NavHostController,
     currentScreen: MutableState<String>,
-    visibility: MutableState<Boolean>
 ) {
     BottomAppBar(
         modifier
