@@ -13,6 +13,9 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.littlebit.photos.ui.screens.audio.AudioViewModel
+import com.littlebit.photos.ui.screens.audio.player.PlayAudioScreen
+import com.littlebit.photos.ui.screens.audio.player.PlayAudioViewModel
 import com.littlebit.photos.ui.screens.home.HomeScreen
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
 import com.littlebit.photos.ui.screens.images.details.ImageDetailsScreen
@@ -21,7 +24,7 @@ import com.littlebit.photos.ui.screens.settings.SettingsScreen
 import com.littlebit.photos.ui.screens.videos.VideoViewModel
 import com.littlebit.photos.ui.screens.videos.player.VideoScreen
 
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+@RequiresApi(34)
 @Composable
 fun NavigationGraph(
     navController: NavHostController,
@@ -30,6 +33,8 @@ fun NavigationGraph(
     isDarkTheme: MutableState<Boolean>,
     photosViewModel: PhotosViewModel,
     videoViewModel: VideoViewModel,
+    audioViewModel: AudioViewModel,
+    playAudioViewModel: PlayAudioViewModel,
 ) {
     NavHost(
         navController = navController,
@@ -44,7 +49,12 @@ fun NavigationGraph(
         composable(
             Screens.HomeScreen.route,
         ) {
-            HomeScreen(navHostController = navController, photosViewModel, videoViewModel)
+            HomeScreen(
+                navHostController = navController,
+                photosViewModel,
+                videoViewModel,
+                audioViewModel
+            )
         }
         composable(
             Screens.Settings.route
@@ -59,13 +69,13 @@ fun NavigationGraph(
             ),
             enterTransition = {
                 slideInHorizontally(
-                    animationSpec = tween(400),
+                    animationSpec = tween(200),
                     initialOffsetX = { it }
                 )
             },
             popExitTransition = {
                 slideOutHorizontally(
-                    animationSpec = tween(400),
+                    animationSpec = tween(200),
                     targetOffsetX = { it }
                 )
             },
@@ -98,10 +108,37 @@ fun NavigationGraph(
                     targetOffsetX = { it }
                 )
             },
-        ){
+        ) {
             val videoIndex = it.arguments?.getInt("videoIndex") ?: 0
             val listIndex = it.arguments?.getInt("listIndex") ?: 0
-            VideoScreen(navHostController = navController, videoViewModel = videoViewModel, videoIndex = videoIndex, listIndex = listIndex)
+            VideoScreen(
+                navHostController = navController,
+                videoViewModel = videoViewModel,
+                videoIndex = videoIndex,
+                listIndex = listIndex
+            )
+        }
+
+
+        composable(
+            route = Screens.PlayAudioScreen.route + "/{audioIndex}",
+            arguments = listOf(
+                navArgument("audioIndex") { type = NavType.IntType }
+            ),
+            enterTransition = {
+                slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(200))
+            },
+            exitTransition = {
+                slideOutHorizontally(animationSpec = tween(200), targetOffsetX = { it })
+            }
+        ) {
+            val audioFileIndex = it.arguments?.getInt("audioIndex") ?: 0
+            PlayAudioScreen(
+                playAudioViewModel,
+                audioViewModel,
+                audioFileIndex,
+                navController = navController,
+            )
         }
     }
 }

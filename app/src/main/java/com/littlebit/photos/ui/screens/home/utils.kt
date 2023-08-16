@@ -5,25 +5,33 @@ import android.net.Uri
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Help
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.ArrowDropDownCircle
+import androidx.compose.material.icons.outlined.Audiotrack
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Group
+import androidx.compose.material.icons.outlined.DataExploration
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.VideoCameraBack
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.BottomAppBarDefaults
@@ -31,62 +39,61 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
-import coil.compose.rememberAsyncImagePainter
-import coil.request.CachePolicy
-import coil.request.ImageRequest
+import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
+import com.bumptech.glide.integration.compose.GlideImage
 import com.littlebit.photos.model.ImageGroup
 import com.littlebit.photos.ui.navigation.Screens
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.*
 
+@OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun ImageItem(
     modifier: Modifier = Modifier,
     imageUri: Uri,
     onImageClick: (Uri) -> Unit = {},
-    contentScale: ContentScale = ContentScale.Crop
+    contentScale: ContentScale = ContentScale.Crop,
+    isFavorite: Boolean = false,
+    showFavorite: Boolean = false,
+    onClickFavorite: () -> Unit = {}
 ) {
     Box(
         contentAlignment = Alignment.Center
     ) {
-        val imagePainter = // Enable crossroad animation
-            rememberAsyncImagePainter(
-                ImageRequest // Add any image transformations
-                    // Enable disk caching
-                    // Enable memory caching
-                    .Builder(LocalContext.current).data(data = imageUri)
-                    .apply(block = fun ImageRequest.Builder.() {
-                        crossfade(true) // Enable crossroad animation
-//                        transformations(RoundedCornersTransformation(8f)) // Add any image transformations
-                        diskCachePolicy(CachePolicy.ENABLED) // Enable disk caching
-                        memoryCachePolicy(CachePolicy.ENABLED) // Enable memory caching
-                    }).build()
-            )
-        Image(
-            painter = imagePainter,
+        GlideImage(
+            model = imageUri,
             contentDescription = null,
             modifier = modifier
                 .size(141.dp)
@@ -96,7 +103,28 @@ fun ImageItem(
                 },
             contentScale = contentScale,
         )
-
+        if (showFavorite) {
+            var isFav by rememberSaveable {
+                mutableStateOf(isFavorite)
+            }
+            val animateColor = animateColorAsState(
+                targetValue = if (isFav) Color.Red else MaterialTheme.colorScheme.onSurface,
+                label = "Favorite Icon Color"
+            )
+            IconButton(
+                onClick = {
+                    onClickFavorite()
+                    isFav = !isFav
+                },
+                colors = IconButtonDefaults.iconButtonColors(contentColor = animateColor.value),
+                modifier = Modifier.align(Alignment.TopEnd)
+            ) {
+                Icon(
+                    imageVector = if (isFav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                    contentDescription = "Favorite Icon"
+                )
+            }
+        }
     }
 }
 
@@ -120,10 +148,18 @@ fun ImageGroupSection(
             verticalArrangement = Arrangement.Top,
         ) {
             imageGroup.images.forEachIndexed { index, image ->
-                ImageItem(modifier = Modifier.weight(1f), imageUri = image, {
-                    imageIndex.value = index
-                    onImageClick(index)
-                }, ContentScale.Crop)
+                ImageItem(
+                    modifier = Modifier.weight(1f),
+                    imageUri = image.uri!!,
+                    {
+                        imageIndex.value = index
+                        onImageClick(index)
+                    },
+                    ContentScale.Crop,
+                    isFavorite = image.isFavorite,
+                ) {
+                    image.isFavorite = !image.isFavorite
+                }
             }
         }
     }
@@ -214,13 +250,13 @@ fun HomeScreenTopBar(
     val context = LocalContext.current
 
     val state: MutableTransitionState<Boolean> =
-        MutableTransitionState<Boolean>(true)
+        MutableTransitionState(true)
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = BottomAppBarDefaults.containerColor.copy(0.7f),
             scrolledContainerColor = BottomAppBarDefaults.containerColor.copy(0.7f),
 
-        ),
+            ),
         title = {
             AnimatedVisibility(
                 visibleState = state,
@@ -289,14 +325,20 @@ fun HomeScreenTopBar(
             }
         },
         scrollBehavior = scrollBehavior
-        )
+    )
 }
 
 @Composable
 fun HomeScreenBottomBar(
     modifier: Modifier = Modifier,
     currentScreen: MutableState<String>,
+    imageScreenListState: LazyListState,
+    videoScreenListState: LazyListState,
+    audioScreenListState: LazyListState,
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val activeColor = MaterialTheme.colorScheme.primary.copy(0.6f)
+    val coroutineScope = rememberCoroutineScope()
     BottomAppBar(
         modifier
             .clip(RoundedCornerShape(topStart = 50.dp, topEnd = 50.dp))
@@ -314,21 +356,54 @@ fun HomeScreenBottomBar(
         containerColor = Color.Transparent
     ) {
         Spacer(modifier = Modifier.weight(1f))
-        IconButton(onClick = { currentScreen.value = Screens.HomeScreen.route }) {
+        IconButton(
+            onClick = {
+                currentScreen.value = Screens.HomeScreen.route
+                if (imageScreenListState.firstVisibleItemIndex > 2)
+                    coroutineScope.launch {
+                        imageScreenListState.animateScrollToItem(0)
+                    }
+            },
+            colors = IconButtonDefaults.iconButtonColors(containerColor = if (currentScreen.value == Screens.HomeScreen.route) activeColor else Color.Transparent)
+        ) {
             Icon(imageVector = Icons.Filled.Image, contentDescription = "Image Icon")
         }
         Spacer(modifier = Modifier.weight(1f))
-        IconButton(onClick = { /*TODO*/ }) {
+        IconButton(
+            onClick = {
+                keyboardController?.show()
+                currentScreen.value = Screens.SearchScreen.route
+            },
+            colors = IconButtonDefaults.iconButtonColors(containerColor = if (currentScreen.value == Screens.SearchScreen.route) activeColor else Color.Transparent)
+        ) {
             Icon(imageVector = Icons.Filled.Search, contentDescription = "Search Icon")
         }
         Spacer(modifier = Modifier.weight(1f))
-        IconButton(onClick = { /*TODO*/ }) {
-            Icon(imageVector = Icons.Outlined.Group, contentDescription = "Sharing Icon")
+        IconButton(
+            onClick = {
+                currentScreen.value = Screens.AudioListScreen.route
+                if (imageScreenListState.firstVisibleItemIndex > 2)
+                    coroutineScope.launch {
+                        audioScreenListState.animateScrollToItem(0)
+                    }
+            },
+            colors = IconButtonDefaults.iconButtonColors(containerColor = if (currentScreen.value == Screens.AudioListScreen.route) activeColor else Color.Transparent)
+        ) {
+            val icon = Icons.Outlined.Audiotrack
+            Icon(imageVector = icon, contentDescription = "Audio Track Icon")
         }
         Spacer(modifier = Modifier.weight(1f))
-        IconButton(onClick = {
-            currentScreen.value = Screens.VideoGridScreen.route
-        }) {
+
+        IconButton(
+            onClick = {
+                currentScreen.value = Screens.VideoGridScreen.route
+                if (imageScreenListState.firstVisibleItemIndex > 2)
+                    coroutineScope.launch {
+                        videoScreenListState.animateScrollToItem(0)
+                    }
+            },
+            colors = IconButtonDefaults.iconButtonColors(containerColor = if (currentScreen.value == Screens.VideoGridScreen.route) activeColor else Color.Transparent),
+        ) {
             Icon(
                 imageVector = Icons.Outlined.VideoCameraBack,
                 contentDescription = "Video Camera Icon"
@@ -348,10 +423,12 @@ fun FloatingProfileDialog(showAlertDialog: MutableState<Boolean>) {
             onDismissRequest = {
                 showAlertDialog.value = false
             },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             ElevatedCard(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(PaddingValues(start = 10.dp, end = 10.dp))
                     .offset(y = animateDp.value)
                     .pointerInput(Unit) {
                         detectTransformGestures { _, pan, _, _ ->
@@ -361,17 +438,22 @@ fun FloatingProfileDialog(showAlertDialog: MutableState<Boolean>) {
                             }
                         }
                     },
-                shape = MaterialTheme.shapes.medium,
-                elevation = CardDefaults.elevatedCardElevation()
+                shape = MaterialTheme.shapes.extraLarge,
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             ) {
-                Column(Modifier.fillMaxWidth()) {
+                Column {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(PaddingValues(6.dp))
                     ) {
                         IconButton(
-                            onClick = { /*TODO*/ },
+                            onClick = {
+                                showAlertDialog.value = false
+                            },
                             Modifier.align(
                                 Alignment.TopStart
                             )
@@ -391,9 +473,140 @@ fun FloatingProfileDialog(showAlertDialog: MutableState<Boolean>) {
                         )
                     }
 
+                    ElevatedCard(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(PaddingValues(10.dp)),
+                        shape = MaterialTheme.shapes.extraLarge,
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+
+                        ) {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                                .clickable { }
+                                .padding(PaddingValues(10.dp)),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AsyncImage(
+                                model = profile_image,
+                                contentDescription = "",
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(
+                                        CircleShape
+                                    )
+                                    .clickable {
+
+                                    },
+                                contentScale = ContentScale.Crop
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column {
+                                Text(
+                                    text = "User Name",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Email@xyz.com",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            Spacer(modifier = Modifier.weight(1f))
+                            Icon(
+                                imageVector = Icons.Outlined.ArrowDropDownCircle,
+                                contentDescription = "",
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Column(
+                            Modifier
+                                .fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                Modifier
+                                    .padding(PaddingValues(10.dp))
+                            ) {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    modifier = Modifier
+                                        .border(
+                                            1.dp,
+                                            MaterialTheme.colorScheme.onSurface,
+                                            MaterialTheme.shapes.large
+                                        )
+                                        .clip(shape = MaterialTheme.shapes.large)
+                                        .clickable {
+
+                                        }
+                                ) {
+                                    Text(
+                                        text = "Manage your Account",
+                                        modifier = Modifier.padding(
+                                            PaddingValues(8.dp)
+                                        ),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    HorizontalDivider(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.surface
+                    )
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(PaddingValues(12.dp))
+                    ) {
+                        DialogItem(icon = Icons.Outlined.Settings, title = "Photos settings") {
+
+                        }
+                        DialogItem(
+                            icon = Icons.Outlined.DataExploration,
+                            title = "Your data in Photos"
+                        ) {
+
+                        }
+                        DialogItem(icon = Icons.AutoMirrored.Outlined.Help, title = "help") {
+
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun DialogItem(icon: ImageVector, title: String, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Row(
+        Modifier
+            .padding(PaddingValues(8.dp))
+            .clickable(interactionSource, indication = null) {
+                onClick()
+            }
+    ) {
+        Icon(imageVector = icon, contentDescription = null)
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = title,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodyMedium
+        )
     }
 }
 

@@ -17,8 +17,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import com.littlebit.photos.ui.navigation.Screens
+import com.littlebit.photos.ui.screens.audio.AudioListScreen
+import com.littlebit.photos.ui.screens.audio.AudioViewModel
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
 import com.littlebit.photos.ui.screens.images.grid.ImageGridScreen
+import com.littlebit.photos.ui.screens.search.SearchScreen
 import com.littlebit.photos.ui.screens.videos.VideoViewModel
 import com.littlebit.photos.ui.screens.videos.grid.VideosGridScreen
 
@@ -28,12 +31,14 @@ import com.littlebit.photos.ui.screens.videos.grid.VideosGridScreen
 fun HomeScreen(
     navHostController: NavHostController,
     photosViewModel: PhotosViewModel,
-    videoViewModel: VideoViewModel
+    videoViewModel: VideoViewModel,
+    audioViewModel: AudioViewModel
 ) {
-    val currentScreen = rememberSaveable{ mutableStateOf(Screens.HomeScreen.route) }
+    val currentScreen = rememberSaveable { mutableStateOf(Screens.HomeScreen.route) }
     val bottomBarVisibility = remember { mutableStateOf(true) }
     val imageScreenListState = rememberLazyListState()
     val videoScreenListState = rememberLazyListState()
+    val audioScreenListState = rememberLazyListState()
     Box(
         Modifier
             .fillMaxSize()
@@ -42,13 +47,40 @@ fun HomeScreen(
             when (screen) {
                 Screens.HomeScreen.route -> {
                     AnimatedVisibility(true) {
-                        ImageGridScreen(navHostController, photosViewModel, bottomBarVisibility, imageScreenListState)
+                        ImageGridScreen(
+                            navHostController,
+                            photosViewModel,
+                            bottomBarVisibility,
+                            imageScreenListState
+                        )
                     }
                 }
 
                 Screens.VideoGridScreen.route -> {
                     AnimatedVisibility(true) {
-                        VideosGridScreen(videoViewModel, bottomBarVisibility, videoScreenListState, navHostController)
+                        VideosGridScreen(
+                            videoViewModel,
+                            bottomBarVisibility,
+                            videoScreenListState,
+                            navHostController
+                        )
+                    }
+                }
+
+                Screens.SearchScreen.route -> {
+                    AnimatedVisibility(true) {
+                        SearchScreen(
+                            navHostController,
+                            photosViewModel = photosViewModel,
+                            videoViewModel = videoViewModel,
+                            currentScreen = currentScreen
+                        )
+                    }
+                }
+
+                Screens.AudioListScreen.route -> {
+                    AnimatedVisibility(true) {
+                        AudioListScreen(navHostController, audioViewModel, audioScreenListState)
                     }
                 }
             }
@@ -63,6 +95,9 @@ fun HomeScreen(
             HomeScreenBottomBar(
                 Modifier,
                 currentScreen,
+                imageScreenListState,
+                videoScreenListState,
+                audioScreenListState
             )
         }
     }

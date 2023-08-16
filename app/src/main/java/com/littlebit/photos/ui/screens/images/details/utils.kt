@@ -14,7 +14,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateOffsetAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -28,7 +27,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Cast
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.MoreVert
@@ -77,7 +76,7 @@ import com.littlebit.photos.ui.screens.images.PhotosViewModel
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ImageSwiper(
-    images: List<ImageGroup>,
+    imageGroups: List<ImageGroup>,
     imageIndex: MutableIntState,
     listIndex: Int,
     onImageClick: () -> Unit = {},
@@ -86,7 +85,7 @@ fun ImageSwiper(
     val pagerState = rememberPagerState(
         initialPage = imageIndex.intValue,
     ) {
-        images[listIndex].images.size
+        imageGroups[listIndex].images.size
     }
     val currentPage = pagerState.currentPage
     var scale by remember { mutableFloatStateOf(1f) }
@@ -94,7 +93,7 @@ fun ImageSwiper(
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
             imageIndex.intValue = page
-            pagerState.animateScrollToPage(page, animationSpec = tween(100))
+            pagerState.animateScrollToPage(page)
             scale = 1f
             offsetState.value = Offset(0f, 0f)
         }
@@ -119,7 +118,7 @@ fun ImageSwiper(
                         val scaledHeight = size.height * scale
 
                         val maxOffsetX = (scaledWidth - size.width) / 2
-                        val maxOffsetY = (scaledHeight - size.height) / 2
+                        val maxOffsetY = (scaledHeight - size.height) / 2.2f
 
                         offsetState.value = Offset(
                             offsetState.value.x + pan.x * scale,
@@ -144,7 +143,7 @@ fun ImageSwiper(
             userScrollEnabled = scale <= 1f && fingersCount <= 1
         ) { page ->
             val imageUri =
-                if (page >= 0 && page < images[listIndex].images.size) images[listIndex].images[page] else Uri.EMPTY
+                if (page >= 0 && page < imageGroups[listIndex].images.size) imageGroups[listIndex].images[page].uri else Uri.EMPTY
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(imageUri)
@@ -211,9 +210,7 @@ fun ImageDetailsTopBar(navHostController: NavHostController) {
         mutableStateOf(false)
     }
     TopAppBar(
-        title = {
-
-        },
+        title = {},
         navigationIcon = {
             IconButton(
                 onClick = {
@@ -222,7 +219,7 @@ fun ImageDetailsTopBar(navHostController: NavHostController) {
                 },
                 enabled = !isPoping
             ) {
-                Icon(Icons.Outlined.ArrowBack, contentDescription = "Back Button")
+                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back Button")
             }
         },
         actions = {
@@ -255,9 +252,10 @@ fun ImageDetailsBottomBar(
     currentImageIndex: MutableIntState,
 ) {
     val photoUri = photosViewModel.photoGroups.collectAsState().value[listIndex].images[currentImageIndex.intValue]
+
     val context = LocalContext.current
     val contentResolver = context.contentResolver
-    val urisToDelete = listOf(photoUri)
+    val urisToDelete = listOf(photoUri.uri)
 
     val trashPendingIntent = MediaStore.createTrashRequest(contentResolver, urisToDelete, true)
     val intentSender = trashPendingIntent.intentSender
@@ -266,12 +264,13 @@ fun ImageDetailsBottomBar(
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             // Handle successful deletion
-            photosViewModel.deletePhoto(listIndex, currentImageIndex.intValue)
+            photosViewModel.deletePhoto(listIndex, currentImageIndex)
             photosViewModel.refresh(context)
             Toast.makeText(context, "Deleted", Toast.LENGTH_SHORT).show()
         } else {
             // Handle deletion failure or user cancellation
-            Toast.makeText(context, "Failed to delete", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Failed to delete ", Toast.LENGTH_SHORT).show()
+
         }
     }
 
@@ -303,7 +302,7 @@ fun ImageDetailsBottomBar(
         IconButton(onClick = {
             shareIntent.apply {
                 type = "image/*"
-                putExtra(Intent.EXTRA_STREAM, photoUri)
+                putExtra(Intent.EXTRA_STREAM, photoUri.uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             launcher.launch(Intent.createChooser(shareIntent, "Share Photo"))

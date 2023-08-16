@@ -29,8 +29,8 @@ import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.littlebit.photos.R
-import com.littlebit.photos.ui.screens.images.PhotosViewModel
 import com.littlebit.photos.ui.navigation.Screens
+import com.littlebit.photos.ui.screens.images.PhotosViewModel
 import com.littlebit.photos.ui.screens.videos.VideoViewModel
 
 
@@ -59,6 +59,7 @@ fun LauncherScreen(
             // Permission granted, navigate to the HomeScreen
             photosViewModel.loadMedia(context)
             navHostController.navigate(Screens.HomeScreen.route) {
+                launchSingleTop = true
                 popUpTo(Screens.LauncherScreen.route) {
                     inclusive = true
                 }
@@ -131,7 +132,7 @@ fun LauncherScreen(
     }
     LaunchedEffect(Unit) {
         // Wait for 200 milliseconds
-        kotlinx.coroutines.delay(200)
+        kotlinx.coroutines.delay(10)
         showLogo.value = false
         requestPermissionLauncher.launch(Manifest.permission.READ_MEDIA_IMAGES)
         launcher.launch(Manifest.permission.READ_MEDIA_VIDEO)

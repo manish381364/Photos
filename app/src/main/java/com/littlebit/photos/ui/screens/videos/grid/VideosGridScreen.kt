@@ -30,7 +30,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
-import com.littlebit.photos.ui.navigation.Screens
 import com.littlebit.photos.ui.screens.videos.VideoViewModel
 
 
