@@ -1,0 +1,97 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+
+
+android {
+    namespace 'com.littlebit.photos'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.littlebit.photos"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        vectorDrawables {
+            useSupportLibrary true
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+    buildFeatures {
+        compose true
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion '1.5.1'
+    }
+    packagingOptions {
+        resources {
+            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
+    }
+}
+dependencies{
+
+
+    // Coil Video
+    implementation("io.coil-kt:coil-video:2.2.2")
+
+    // ExoPlayer
+    implementation "androidx.media3:media3-exoplayer:1.1.0"
+    implementation "androidx.media3:media3-exoplayer-dash:1.1.0"
+    implementation "androidx.media3:media3-ui:1.1.0"
+
+
+    // Accompanist insets
+    implementation "com.google.accompanist:accompanist-insets:0.31.5-beta"
+
+    //ViewModel
+    implementation('androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1')
+
+    //Extended Material 3 Icons
+    implementation 'androidx.compose.material:material-icons-core'
+    implementation 'androidx.compose.material:material-icons-extended'
+
+    //Accompanist Permissions, UI System Controller
+    implementation 'com.google.accompanist:accompanist-permissions:0.31.6-rc'
+    implementation 'com.google.accompanist:accompanist-systemuicontroller:0.31.6-rc'
+
+    //Coil for Image Loading
+    implementation("io.coil-kt:coil-compose:2.4.0")
+
+    //Compose BOM
+    implementation platform('androidx.compose:compose-bom:2023.06.01')
+
+    // Override Material Design 3 library version with a pre-release version
+    implementation 'androidx.compose.material3:material3:1.2.0-alpha04'
+
+    // Import other Compose libraries without version numbers
+    implementation 'androidx.compose.foundation:foundation'
+
+    //Navigation
+    implementation('androidx.compose.ui:ui:1.6.0-alpha02')
+    implementation('androidx.navigation:navigation-compose:2.7.0-rc01')
+
+    // Preview
+    // ComposeViewAdapter
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation('androidx.compose.ui:ui-tooling:1.6.0-alpha02')
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+}
