@@ -30,10 +30,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import com.littlebit.photos.ui.screens.videos.VideoViewModel
 
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun VideosGridScreen(
@@ -43,9 +46,9 @@ fun VideosGridScreen(
     navHostController: NavHostController
 ) {
     var lastScrollPosition by remember { mutableIntStateOf(0) }
-    videoViewModel.videos.collectAsState()
     val context = LocalContext.current
     val topAppBarScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+    val list = videoViewModel.videoGroups.collectAsState().value
     Scaffold(
         containerColor = Color.Transparent,
         modifier = Modifier.nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
@@ -53,9 +56,11 @@ fun VideosGridScreen(
             VideoScreenTopBar(topAppBarScrollBehavior = topAppBarScrollBehavior)
         },
     ) { innerPadding ->
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .padding(innerPadding)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
             Surface {
                 VideoGridList(
                     videoViewModel = videoViewModel,
@@ -68,11 +73,7 @@ fun VideosGridScreen(
 
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-            if (isGranted) {
-                // Permission granted, fetch video URIs
-                videoViewModel.refreshVideos(context)
-            } else {
-                // Handle permission denied
+            if (!isGranted) {
                 Toast.makeText(context, "Permission denied", Toast.LENGTH_SHORT).show()
                 val appSettingsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
                 appSettingsIntent.data = Uri.fromParts("package", context.packageName, null)
@@ -80,10 +81,16 @@ fun VideosGridScreen(
             }
         }
 
+    val permissionState =
+        rememberPermissionState(permission = android.Manifest.permission.READ_MEDIA_VIDEO)
+
 
     // Request permission when the screen is first composed
-    LaunchedEffect(key1 = true) {
-        launcher.launch(android.Manifest.permission.READ_MEDIA_VIDEO)
+    LaunchedEffect(true) {
+        if (Build.VERSION.SDK_INT < 33)
+            launcher.launch(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+        else
+            launcher.launch(android.Manifest.permission.READ_MEDIA_VIDEO)
     }
 
 
@@ -101,6 +108,13 @@ fun VideosGridScreen(
                     bottomBarVisibility.value = true
                 }
             }
+    }
+
+    LaunchedEffect(Unit) {
+        if (permissionState.status.isGranted) {
+            if(list.isEmpty())
+                videoViewModel.refreshVideos(context)
+        }
     }
 }
 

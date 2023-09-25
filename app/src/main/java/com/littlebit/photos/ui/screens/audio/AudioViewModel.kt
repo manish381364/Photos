@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.littlebit.photos.model.repository.MediaRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,7 +27,7 @@ class AudioViewModel(
 
     @RequiresApi(Build.VERSION_CODES.Q)
     fun loadAudio(context: Context) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.Default)  {
             try {
                 val result = withContext(customDispatcher) {
                     repository.getAudioList(context)

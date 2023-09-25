@@ -4,6 +4,8 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.EaseIn
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
@@ -11,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,10 +33,10 @@ fun HomeScreen(
     navHostController: NavHostController,
     photosViewModel: PhotosViewModel,
     videoViewModel: VideoViewModel,
-    audioViewModel: AudioViewModel
+    audioViewModel: AudioViewModel,
 ) {
     val currentScreen = rememberSaveable { mutableStateOf(Screens.HomeScreen.route) }
-    val bottomBarVisibility = remember { mutableStateOf(true) }
+    val bottomBarVisibility = rememberSaveable { mutableStateOf(true) }
     val imageScreenListState = rememberLazyListState()
     val videoScreenListState = rememberLazyListState()
     val audioScreenListState = rememberLazyListState()
@@ -43,7 +44,7 @@ fun HomeScreen(
         Modifier
             .fillMaxSize()
     ) {
-        Crossfade(targetState = currentScreen.value, label = "Screens") { screen ->
+        Crossfade(targetState = currentScreen.value, label = "Screens", animationSpec = tween(300, easing = EaseIn)) { screen ->
             when (screen) {
                 Screens.HomeScreen.route -> {
                     AnimatedVisibility(true) {
@@ -52,17 +53,6 @@ fun HomeScreen(
                             photosViewModel,
                             bottomBarVisibility,
                             imageScreenListState
-                        )
-                    }
-                }
-
-                Screens.VideoGridScreen.route -> {
-                    AnimatedVisibility(true) {
-                        VideosGridScreen(
-                            videoViewModel,
-                            bottomBarVisibility,
-                            videoScreenListState,
-                            navHostController
                         )
                     }
                 }
@@ -81,6 +71,17 @@ fun HomeScreen(
                 Screens.AudioListScreen.route -> {
                     AnimatedVisibility(true) {
                         AudioListScreen(navHostController, audioViewModel, audioScreenListState)
+                    }
+                }
+
+                Screens.VideoGridScreen.route -> {
+                    AnimatedVisibility(true) {
+                        VideosGridScreen(
+                            videoViewModel,
+                            bottomBarVisibility,
+                            videoScreenListState,
+                            navHostController
+                        )
                     }
                 }
             }

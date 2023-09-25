@@ -1,8 +1,6 @@
 package com.littlebit.photos.ui.screens.images.details
 
-import android.os.Build
 import androidx.activity.compose.BackHandler
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -20,7 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
 
-@RequiresApi(Build.VERSION_CODES.R)
+
 @Composable
 fun ImageDetailsScreen(
     navHostController: NavHostController,
@@ -71,6 +69,7 @@ fun ImageDetailsScreen(
                 )
             }
         }
+
     }
 }
 
