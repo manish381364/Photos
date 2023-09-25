@@ -1,90 +1,86 @@
 package com.littlebit.photos.ui.screens.images
 
 import android.content.Context
-import android.os.Build
-import androidx.annotation.RequiresApi
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
+import android.util.Log
+import androidx.compose.runtime.MutableIntState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.littlebit.photos.model.ImageGroup
+import com.littlebit.photos.model.PhotoItem
 import com.littlebit.photos.model.repository.MediaRepository
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.ExecutorCoroutineDispatcher
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.Instant
+import kotlinx.coroutines.withContext
+import java.util.concurrent.Executors
 
 
-class PhotosViewModel : ViewModel() {
+class PhotosViewModel(
+    private val mediaRepository: MediaRepository = MediaRepository()
+) : ViewModel() {
+    private val _photos = MutableStateFlow(mutableListOf<PhotoItem>())
     private val _photoGroups = MutableStateFlow(mutableListOf<ImageGroup>())
-    private val _mediaList = MutableLiveData<List<ImageGroup>>()
-    val mediaList: LiveData<List<ImageGroup>> get() = _mediaList
+    val isLoading = MutableStateFlow(false)
     val photoGroups = _photoGroups
-    private val mediaRepository = MediaRepository()
-    fun loadMedia(context: Context) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val media = mediaRepository.getImagesGroupedByDate(context.contentResolver)
-            _mediaList.postValue(media)
-            _photoGroups.value = media.toMutableList()
-        }
-    }
+    val photos = _photos
 
-    fun deletePhoto(listGroupIndex: Int, imageIndex: Int) {
+    private val customDispatcher: ExecutorCoroutineDispatcher =
+        Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+    private val addImageGroupDispatcher: ExecutorCoroutineDispatcher =
+        Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+
+    private fun loadMedia(context: Context) {
+        Log.d("PHOTOS_VIEW_MODEL", "addPhotosGroupedByDate: Inside LOAD_MEDIA")
         try {
-            _photoGroups.value[listGroupIndex].images.removeAt(imageIndex)
-        }
-        catch (exception : Exception) {
-            throw exception
+            viewModelScope.launch(Dispatchers.Default) {
+                val media = withContext(customDispatcher) {
+                    mediaRepository.getImagesGroupedByDate(context.contentResolver, isLoading)
+                }
+                _photoGroups.value = media.first
+                photos.value = media.second
+            }
+        } catch (exception: Exception) {
+            exception.printStackTrace()
         }
     }
 
-    // Refreshable list
-    private val _isRefreshing = MutableStateFlow(false)
-    val isRefreshing = _isRefreshing.asStateFlow()
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    private val _currentTime = MutableStateFlow(Instant.now())
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    val currentTime = _currentTime.asStateFlow()
-
-    private val _items = MutableStateFlow(mediaList.value)
-    val items = _items.asStateFlow()
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    fun refresh(context: Context) = viewModelScope.launch {
-        _isRefreshing.update { true }
-        // Simulate API call
-        delay(2000)
-        _currentTime.value = Instant.now()
-        loadMedia(context)
-        _items.value = mediaList.value
-        _isRefreshing.update { false }
+    fun addPhotosGroupedByDate(context: Context){
+        Log.d("PHOTOS_VIEW_MODEL", "addPhotosGroupedByDate: Inside ADD_PHOTOS")
+        viewModelScope.launch(Dispatchers.Default){
+            withContext(addImageGroupDispatcher){
+                mediaRepository.addImagesGroupedByDate(context.contentResolver, _photoGroups, _photos, isLoading)
+            }
+        }
     }
 
-//    fun delete(context: Context, uri: Uri?) {
-//        try {
-//            context.contentResolver.delete(uri!!, null, null)
-//            Toast.makeText(context, "Deleted", Toast.LENGTH_SHORT).show()
-//        } catch (exception: SecurityException) {
-//            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-//                if (exception is RecoverableSecurityException) {
-//                    val intent = exception.userAction
-//                        .actionIntent
-//                        .intentSender
-//                    val activity = context as Activity
-//                    startIntentSenderForResult(activity, intent, , null, 0, 0, 0, null)
-//                    Toast.makeText(context, "Deleted", Toast.LENGTH_SHORT).show()
-//                    return
-//                }
-//            }
-//            Toast.makeText(context, "Failed to delete", Toast.LENGTH_SHORT).show()
-//            throw exception
-//        }
-//    }
+    override fun onCleared() {
+        super.onCleared()
+        customDispatcher.close()
+        addImageGroupDispatcher.close()
+    }
+
+
+    fun deletePhoto(listGroupIndex: Int, imageIndex: MutableIntState) {
+        try {
+            if(listGroupIndex < _photoGroups.value.size){
+                if(imageIndex.intValue < _photoGroups.value[listGroupIndex].images.size){
+                    _photoGroups.value.removeAt(listGroupIndex)
+                    if(_photoGroups.value[listGroupIndex].images.size == 0){
+                        _photoGroups.value.removeAt(listGroupIndex)
+                    }
+                }
+                if(imageIndex.intValue < _photos.value.size){
+                    _photos.value.removeAt(imageIndex.intValue)
+                }
+            }
+        } catch (exception: Exception) {
+            exception.printStackTrace()
+        }
+    }
+
+    fun refresh(context: Context) = loadMedia(context)
 
 }
 

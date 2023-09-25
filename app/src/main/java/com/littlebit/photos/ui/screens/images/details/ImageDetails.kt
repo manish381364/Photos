@@ -1,24 +1,24 @@
 package com.littlebit.photos.ui.screens.images.details
 
-import android.os.Build
 import androidx.activity.compose.BackHandler
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
 
-@RequiresApi(Build.VERSION_CODES.R)
+
 @Composable
 fun ImageDetailsScreen(
     navHostController: NavHostController,
@@ -33,25 +33,34 @@ fun ImageDetailsScreen(
     val currentImageIndex = remember {
         mutableIntStateOf(imageIndex)
     }
+    val currentListIndex = remember {
+        mutableIntStateOf(listIndex)
+    }
     BackHandler {
         appBarsVisible.value = true
         navHostController.navigateUp()
     }
-    Scaffold(
-        topBar = {
+    Surface {
+        Box(Modifier.fillMaxSize()) {
+            ImageSwiper(
+                imageGroups = mediaList,
+                imageIndex = currentImageIndex,
+                listIndex = currentListIndex.intValue,
+            ) { appBarsVisible.value = !appBarsVisible.value }
+
             AnimatedVisibility(
                 visible = appBarsVisible.value,
                 enter = fadeIn(tween(400)),
                 exit = fadeOut(),
+                modifier = Modifier.align(Alignment.TopCenter)
             ) {
                 ImageDetailsTopBar(navHostController)
             }
-        },
-        bottomBar = {
             AnimatedVisibility(
                 visible = appBarsVisible.value,
                 enter = fadeIn(tween(400)),
-                exit = fadeOut()
+                exit = fadeOut(),
+                modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 ImageDetailsBottomBar(
                     photosViewModel,
@@ -59,14 +68,8 @@ fun ImageDetailsScreen(
                     currentImageIndex
                 )
             }
-        },
-    ) { padding ->
-        Modifier.padding(padding)
-        ImageSwiper(
-            images = mediaList,
-            imageIndex = currentImageIndex,
-            listIndex = listIndex,
-        ) { appBarsVisible.value = !appBarsVisible.value }
+        }
+
     }
 }
 
