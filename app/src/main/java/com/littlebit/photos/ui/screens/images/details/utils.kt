@@ -11,7 +11,6 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -65,15 +64,14 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.app.ComponentActivity
 import androidx.navigation.NavHostController
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
+import com.bumptech.glide.integration.compose.GlideImage
 import com.littlebit.photos.model.ImageGroup
 import com.littlebit.photos.ui.navigation.Screens
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
 
 
-@RequiresApi(Build.VERSION_CODES.R)
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalGlideComposeApi::class)
 @Composable
 fun ImageSwiper(
     imageGroups: List<ImageGroup>,
@@ -144,11 +142,8 @@ fun ImageSwiper(
         ) { page ->
             val imageUri =
                 if (page >= 0 && page < imageGroups[listIndex].images.size) imageGroups[listIndex].images[page].uri else Uri.EMPTY
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(imageUri)
-                    .crossfade(true)
-                    .build(),
+            GlideImage(
+                model = imageUri,
                 contentDescription = null,
                 modifier = Modifier
                     .graphicsLayer(
@@ -244,32 +239,36 @@ fun ImageDetailsTopBar(navHostController: NavHostController) {
     )
 }
 
-@RequiresApi(Build.VERSION_CODES.R)
+
 @Composable
 fun ImageDetailsBottomBar(
     photosViewModel: PhotosViewModel,
     listIndex: Int,
     currentImageIndex: MutableIntState,
 ) {
-    val photoUri = photosViewModel.photoGroups.collectAsState().value[listIndex].images[currentImageIndex.intValue]
+    val photoUri =
+        photosViewModel.photoGroups.collectAsState().value[listIndex].images[currentImageIndex.intValue]
 
     val context = LocalContext.current
     val contentResolver = context.contentResolver
     val urisToDelete = listOf(photoUri.uri)
 
-    val trashPendingIntent = MediaStore.createTrashRequest(contentResolver, urisToDelete, true)
-    val intentSender = trashPendingIntent.intentSender
-    val deleteLauncher = rememberLauncherForActivityResult(
+    val trashPendingIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        MediaStore.createTrashRequest(contentResolver, urisToDelete, true)
+    } else {
+        null
+    }
+    val trashIntentSender = trashPendingIntent?.intentSender
+    val trashLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             // Handle successful deletion
             photosViewModel.deletePhoto(listIndex, currentImageIndex)
-            photosViewModel.refresh(context)
-            Toast.makeText(context, "Deleted", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Moved to trash", Toast.LENGTH_SHORT).show()
         } else {
             // Handle deletion failure or user cancellation
-            Toast.makeText(context, "Failed to delete ", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Failed to move ", Toast.LENGTH_SHORT).show()
 
         }
     }
@@ -278,10 +277,7 @@ fun ImageDetailsBottomBar(
     val shareIntent = remember {
         Intent(Intent.ACTION_SEND)
     }
-    val launcher =
-        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-
-        }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {}
     BottomAppBar(
         Modifier
             .background(
@@ -328,9 +324,14 @@ fun ImageDetailsBottomBar(
         IconButton(
             onClick = {
                 try {
-                    deleteLauncher.launch(
-                        IntentSenderRequest.Builder(intentSender).build()
-                    )
+                    if (trashPendingIntent == null) {
+                        if (photoUri.uri != null)
+                            contentResolver.delete(photoUri.uri, null, null)
+                    } else {
+                        trashLauncher.launch(
+                            trashIntentSender?.let { IntentSenderRequest.Builder(it).build() }
+                        )
+                    }
                 } catch (exception: SecurityException) {
                     // Request permission from user
                     Toast.makeText(

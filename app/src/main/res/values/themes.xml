@@ -9,7 +9,7 @@
             false
         </item>
         <item name="android:statusBarColor">
-            @android:color/black
+            @android:color/transparent
         </item>
     </style>
 </resources>

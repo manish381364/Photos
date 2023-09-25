@@ -1,6 +1,7 @@
 package com.littlebit.photos.ui.screens.audio.player
 
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -24,15 +25,14 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Audiotrack
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Repeat
@@ -53,12 +53,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -87,6 +85,7 @@ import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import com.littlebit.photos.ui.screens.audio.Audio
 import com.littlebit.photos.ui.screens.audio.AudioViewModel
 import com.littlebit.photos.ui.screens.audio.FileInfo
+import com.littlebit.photos.ui.screens.videos.grid.isLandscape
 
 @RequiresApi(34)
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -101,20 +100,22 @@ fun PlayAudioScreen(
     val audioFile = audioList[audioFileIndex]
     val uri = audioFile.uri
     val context = LocalContext.current
-    val state = playAudioViewModel.playbackState.collectAsState()
-    if (state.value == PlaybackState.IDLE) {
-        playAudioViewModel.play(uri, context)
-    }
-    val systemUiController =  rememberSystemUiController()
+    val state = playAudioViewModel.getPlayBackState()
+    val systemUiController = rememberSystemUiController()
     systemUiController.setStatusBarColor(Color.Transparent, darkIcons = false)
-    MaterialTheme(darkColorScheme()){
-        XPlayerScreen(playAudioViewModel, audioViewModel, audioFileIndex, navController)
+    MaterialTheme(darkColorScheme()) {
+        XPlayerScreen(playAudioViewModel, audioViewModel, audioFile, navController)
     }
     playAudioViewModel.updatePlayBackProgress()
-    DisposableEffect(Unit) {
-        onDispose {
-            playAudioViewModel.clear()
+    LaunchedEffect(Unit) {
+        if(state == PlaybackState.IDLE || state == PlaybackState.PAUSED || state == PlaybackState.COMPLETED) {
+            playAudioViewModel.play(uri, context)
         }
+    }
+    BackHandler {
+        playAudioViewModel.pause()
+        playAudioViewModel.playbackProgress.value = 0
+        navController.popBackStack()
     }
 }
 
@@ -123,14 +124,10 @@ fun PlayAudioScreen(
 fun XPlayerScreen(
     playAudioViewModel: PlayAudioViewModel,
     audioViewModel: AudioViewModel,
-    audioFileIndex: Int,
+    audioFile: Audio,
     navController: NavHostController
 ) {
-    val currentIndex = rememberSaveable {
-        mutableIntStateOf(audioFileIndex)
-    }
-    val audioList = audioViewModel.audioList.collectAsState().value
-    val audioFile = audioList[currentIndex.intValue]
+
     val audioThumbNail = audioFile.thumbNail
     val progress = playAudioViewModel.playbackProgress.collectAsState()
     val dominantColor = if (audioThumbNail != null) getDominantColor(audioThumbNail) else remember {
@@ -149,8 +146,9 @@ fun XPlayerScreen(
         ) {
             Column(
                 Modifier
-                    .padding(WindowInsets.systemBars.asPaddingValues())
-                    .fillMaxSize()
+                    .padding(WindowInsets.systemBars.asPaddingValues()),
+                verticalArrangement = Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 XPlayerTopBar(
                     Modifier,
@@ -159,11 +157,8 @@ fun XPlayerScreen(
                     audioFile,
                     audioViewModel
                 )
-                Spacer(modifier = Modifier.height(10.dp))
                 AudioThumbNail(audioThumbNail)
-                Spacer(modifier = Modifier.height(4.dp))
                 MarqueeText(text = audioFile.name)
-                Spacer(modifier = Modifier.height(10.dp))
                 SliderWithTimer(
                     progress.value,
                     playAudioViewModel.getDuration(),
@@ -172,7 +167,6 @@ fun XPlayerScreen(
                 ) {
                     playAudioViewModel.seekTo(it)
                 }
-                Spacer(modifier = Modifier.height(10.dp))
                 PlayBackController(playAudioViewModel)
             }
         }
@@ -233,13 +227,13 @@ fun AudioThumbNail(audioThumbNail: ImageBitmap?) {
     Box(
         Modifier
             .fillMaxWidth()
-            .padding(start = 12.dp, end = 12.dp, top = 22.dp, bottom = 22.dp)
+            .padding(start = 12.dp, end = 12.dp)
     ) {
         if (audioThumbNail == null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.7f)
+                    .fillMaxHeight(if(isLandscape()) 0.5f else 0.7f)
                     .clip(MaterialTheme.shapes.extraLarge)
                     .background(Color.White.copy(0.4f))
             ) {
@@ -256,7 +250,7 @@ fun AudioThumbNail(audioThumbNail: ImageBitmap?) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.7f)
+                    .fillMaxHeight(if(isLandscape()) 0.5f else 0.7f)
                     .clip(MaterialTheme.shapes.extraLarge)
                     .background(Color.White.copy(0.1f)),
                 contentAlignment = Alignment.Center
@@ -404,10 +398,11 @@ fun XPlayerTopBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = {
+            playAudioViewModel.pause()
+            playAudioViewModel.playbackProgress.value = 0
             navController.popBackStack()
-
         }) {
-            Icon(imageVector = Icons.Outlined.ArrowBack, contentDescription = "Back Button")
+            Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back Button")
         }
         Spacer(Modifier.weight(1f))
         IconButton(onClick = {
@@ -434,7 +429,7 @@ fun XPlayerTopBarMenu(
     var showFileInfo by remember {
         mutableStateOf(false)
     }
-    val file = remember{
+    val file = remember {
         mutableStateOf(audio)
     }
     val menuItems = listOf(
@@ -463,16 +458,22 @@ fun XPlayerTopBarMenu(
         }
     }
 
-    AnimatedVisibility (
+    AnimatedVisibility(
         showFileInfo,
-        enter = slideInVertically(initialOffsetY = {-it}, animationSpec = tween(900)),
+        enter = slideInVertically(initialOffsetY = { -it }, animationSpec = tween(900)),
         exit = slideOutHorizontally()
     ) {
         Dialog(
             onDismissRequest = { showFileInfo = false },
-            properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true, SecureFlagPolicy.Inherit, usePlatformDefaultWidth = false, decorFitsSystemWindows = true)
+            properties = DialogProperties(
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true,
+                SecureFlagPolicy.Inherit,
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = true
+            )
         ) {
-            FileInfo(currentFile = file){
+            FileInfo(currentFile = file) {
                 showFileInfo = false
             }
         }

@@ -1,21 +1,15 @@
 package com.littlebit.photos.ui.screens.videos.player
 
-import android.content.Context
 import android.net.Uri
-import android.os.PowerManager
-import androidx.activity.compose.BackHandler
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -24,19 +18,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import androidx.navigation.NavHostController
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import com.littlebit.photos.ui.screens.videos.VideoViewModel
-import com.littlebit.photos.ui.screens.videos.grid.isLandscape
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun VideoScreen(
     navHostController: NavHostController,
@@ -52,88 +46,89 @@ fun VideoScreen(
     systemUiController.isSystemBarsVisible = false
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         VideoPlayer(
-            uriList = videoUriList,
-            startIndex = videoIndex,
-            navHostController = navHostController
+            uriList = videoUriList, startIndex = videoIndex, navHostController = navHostController, playerViewModel = viewModel()
         )
     }
 }
 
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 fun VideoPlayer(
     uriList: List<Uri?>,
     startIndex: Int,
     navHostController: NavHostController,
-    playerViewModel: VideoPlayerViewModel = viewModel()
+    playerViewModel: VideoPlayerViewModel
 ) {
-    val progress = playerViewModel.playBackProgress.collectAsState()
-    val isLandsScape = isLandscape()
+    val currentUriIndex = rememberUpdatedState(startIndex)
+    val isPlaying = rememberUpdatedState(playerViewModel.isPlaying)
+    val playbackPosition = rememberUpdatedState(playerViewModel.playbackPosition)
     val systemUiController = rememberSystemUiController()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val paddingValues by remember {
-        mutableStateOf(PaddingValues(bottom = if (isLandsScape) 0.dp else 10.dp))
+    val player = remember {
+        ExoPlayer.Builder(context).build()
     }
-    playerViewModel.initialiseXPlayer(context)
-    val player = playerViewModel.xPlayer
     val playerView = remember {
         PlayerView(context)
     }
     playerView.player = player
+
+
+
     val mediaItems = uriList.map {
         val currentItem = MediaItem.fromUri(it!!)
         currentItem
     }.toMutableList()
-    playerViewModel.setMedia(mediaItems, startIndex)
-    playerViewModel.play()
+    player.setMediaItems(mediaItems, currentUriIndex.value, 0)
+    player.prepare()
+    player.seekTo(playbackPosition.value)
 
-    val powerService = context.getSystemService(Context.POWER_SERVICE)
-    val p = powerService as PowerManager
-    val wakeLock = p.newWakeLock(
-        PowerManager.SCREEN_DIM_WAKE_LOCK,
-        "VideoPlayer::WakeLock"
-    )
+    // Start or pause playback based on the stored state
+   if(!isPlaying.value){
+       player.play()
+   }
+
 
 
     // AndroidView for displaying the video player
-    AndroidView(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues)
-            .background(Color.Black)
-            .focusable()
-            .onKeyEvent {
-                playerView.dispatchKeyEvent(it.nativeKeyEvent)
-            },
-        factory = { playerView }
+    AndroidView(modifier = Modifier
+        .fillMaxSize()
+        .background(Color.Black)
+        .focusable()
+        .onKeyEvent {
+            playerView.dispatchKeyEvent(it.nativeKeyEvent)
+        },
+        factory = {
+            playerView.apply {
+                setControllerVisibilityListener(PlayerView.ControllerVisibilityListener {
+                    systemUiController.isSystemBarsVisible = it == 0
+                })
+                setShowRewindButton(false)
+                setShowFastForwardButton(false)
+                setShowSubtitleButton(true)
+            }
+        }
     )
 
 
-    LaunchedEffect(progress){
-        player?.seekTo(progress.value)
-    }
-
-
-    // Save playback position when the composable is disposed
     DisposableEffect(player) {
         onDispose {
-            player?.release()
+            player.release()
             systemUiController.isStatusBarVisible = true
+            playerViewModel.currentUriIndex = currentUriIndex.value
+            playerViewModel.isPlaying = player.isPlaying
+            playerViewModel.playbackPosition = player.currentPosition
+            coroutineScope.launch {
+                delay(300)
+                navHostController.popBackStack()
+                systemUiController.isStatusBarVisible = true
+            }
         }
     }
 
     // Handle back press
-
-    BackHandler {
-        playerView.player = null
-        player?.release()
-        coroutineScope.launch {
-            delay(300)
-        }
-        navHostController.popBackStack()
-    }
 }
 
 

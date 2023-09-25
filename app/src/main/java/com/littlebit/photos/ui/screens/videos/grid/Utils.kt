@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -20,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,7 +42,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import coil.compose.AsyncImage
+import com.bumptech.glide.integration.compose.CrossFade
+import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
+import com.bumptech.glide.integration.compose.GlideImage
 import com.littlebit.photos.model.VideoItem
 import com.littlebit.photos.ui.navigation.Screens
 import com.littlebit.photos.ui.screens.home.DateWithMarkButton
@@ -67,8 +71,8 @@ fun VideoScreenTopBar(
                 horizontalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "Videos",
-                    style = MaterialTheme.typography.titleLarge,
+                    text = "Bit Videos",
+                    style =  MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
@@ -91,8 +95,15 @@ fun VideoGridList(
     navHostController: NavHostController
 ) {
     val videoGroups = videoViewModel.videoGroups.collectAsState()
+    val isLoading = videoViewModel.isLoading.collectAsState()
     if (videoGroups.value.isEmpty()) {
-        Text(text = "No Videos Found")
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center){
+            if(isLoading.value){
+                CircularProgressIndicator(Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.onSurface)
+            }
+            else
+                Text(text = "No Videos Found", style = MaterialTheme.typography.titleLarge)
+        }
     } else {
         LazyColumn(state = scrollState) {
             videoGroups.value.forEachIndexed { groupIndex, videoGroup ->
@@ -102,7 +113,7 @@ fun VideoGridList(
                         Spacer(modifier = Modifier.height(6.dp))
                         FlowRow(Modifier.fillMaxWidth()) {
                             videoGroup.videos.forEachIndexed { index, video ->
-                                GridItem(
+                                VideoGridItem(
                                     video
                                 ) {
                                     navHostController.navigate(Screens.VideoScreen.route + "/$index/$groupIndex")
@@ -116,9 +127,10 @@ fun VideoGridList(
     }
 }
 
+@OptIn(ExperimentalGlideComposeApi::class)
 @RequiresApi(Build.VERSION_CODES.Q)
 @Composable
-fun GridItem(
+fun VideoGridItem(
     video: VideoItem,
     onClick: () -> Unit,
 ) {
@@ -126,7 +138,7 @@ fun GridItem(
     val height = if (isLandscape()) screenWidthInDp() / 4 else screenWidthInDp() / 2
     if (video.uri != null) {
         Box(contentAlignment = Alignment.Center) {
-            AsyncImage(
+            GlideImage(
                 model = video.thumbnail,
                 contentDescription = "Thumbnail",
                 contentScale = ContentScale.Crop,
@@ -134,7 +146,8 @@ fun GridItem(
                     .width(width)
                     .height(height)
                     .padding(PaddingValues(2.dp))
-                    .clickable { onClick() }
+                    .clickable { onClick() },
+                transition = CrossFade
             )
             Row(
                 Modifier

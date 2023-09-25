@@ -1,14 +1,11 @@
 package com.littlebit.photos.ui.screens.audio.player
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -20,12 +17,8 @@ import kotlinx.coroutines.launch
 class PlayAudioViewModel : ViewModel() {
     private val mediaPlayer = MediaPlayer()
     private val _playbackState = MutableStateFlow<PlaybackState>(PlaybackState.IDLE)
-    private var notificationCompat: NotificationCompat.Builder? = null
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    private var notificationManagerCompat: NotificationManagerCompat? = null
     val isLooping = MutableStateFlow(false)
-    private val isListLooping = MutableStateFlow(false)
     val playbackState: StateFlow<PlaybackState> = _playbackState
     val playbackProgress = MutableStateFlow(0)
     private val currentUri = MutableStateFlow(Uri.EMPTY)
@@ -33,8 +26,6 @@ class PlayAudioViewModel : ViewModel() {
 
     @RequiresApi(Build.VERSION_CODES.O)
     fun play(uri: Uri, context: Context) {
-        notificationCompat = NotificationModule.provideNotification(context)
-        notificationManagerCompat = NotificationModule.provideNotificationManager(context)
         currentUri.value = uri
         mediaPlayer.reset()
         mediaPlayer.setDataSource(context, uri)
@@ -49,7 +40,7 @@ class PlayAudioViewModel : ViewModel() {
 
 
     fun updatePlayBackProgress() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.Default) {
             while (mediaPlayer.isPlaying) {
                 playbackProgress.value = mediaPlayer.currentPosition
                 delay(1000)
@@ -68,15 +59,14 @@ class PlayAudioViewModel : ViewModel() {
     fun resume() {
         mediaPlayer.seekTo(playbackProgress.value)
         mediaPlayer.start()
+        if(_playbackState.value == PlaybackState.COMPLETED){
+            updatePlayBackProgress()
+        }
         _playbackState.value = PlaybackState.PLAYING
         Log.d("SEEK_TO", "resume: ${mediaPlayer.currentPosition}")
     }
 
-    fun clear() {
-        _playbackState.value = PlaybackState.IDLE
-        mediaPlayer.stop()
-        playbackProgress.value = 0
-    }
+
 
     fun seekTo(toInt: Int) {
         mediaPlayer.seekTo(toInt)
@@ -148,6 +138,16 @@ class PlayAudioViewModel : ViewModel() {
 
     }
 
+
+    override fun onCleared() {
+        super.onCleared()
+        mediaPlayer.release()
+    }
+
+    fun getPlayBackState(): PlaybackState {
+        return  _playbackState.value
+    }
+
 }
 
 sealed class PlaybackState {
@@ -155,31 +155,6 @@ sealed class PlaybackState {
     data object PLAYING : PlaybackState()
     data object PAUSED : PlaybackState()
     data object COMPLETED : PlaybackState()
-}
-
-
-
-object NotificationModule {
-    @SuppressLint("PrivateResource")
-    fun provideNotification(context: Context): NotificationCompat.Builder {
-        return NotificationCompat.Builder(context, "channelId")
-            .setSmallIcon(androidx.media3.ui.R.drawable.exo_ic_audiotrack)
-            .setContentTitle("Title")
-            .setContentText("Text")
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-    }
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    fun provideNotificationManager(context: Context): NotificationManagerCompat {
-        val notificationManager = NotificationManagerCompat.from(context)
-        val notificationChannel = android.app.NotificationChannel(
-            "channelId",
-            "channelName",
-            android.app.NotificationManager.IMPORTANCE_DEFAULT
-        )
-        notificationManager.createNotificationChannel(notificationChannel)
-        return notificationManager
-    }
 }
 
 
