@@ -8,6 +8,9 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.rememberSplineBasedDecay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,13 +19,12 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -30,11 +32,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
-import com.littlebit.photos.ui.screens.home.FloatingProfileDialog
 import com.littlebit.photos.ui.screens.home.HomeScreenTopBar
 import com.littlebit.photos.ui.screens.home.ImageGridList
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
@@ -47,13 +47,17 @@ fun ImageGridScreen(
     photosViewModel: PhotosViewModel,
     bottomBarVisibility: MutableState<Boolean>,
     imageScreenListState: LazyListState,
+    showAlertDialog: MutableState<Boolean>,
 ) {
+
+    val context = LocalContext.current
     var lastScrollPosition by remember { mutableIntStateOf(0) }
-    val list = photosViewModel.photoGroups.collectAsState().value
-    val showAlertDialog = remember {
-        mutableStateOf(false)
-    }
-    val topAppBarScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+    val imageGroups by photosViewModel.photoGroups.collectAsStateWithLifecycle()
+    val topAppBarScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(
+        state = rememberTopAppBarState(),
+        snapAnimationSpec = spring(stiffness = Spring.StiffnessLow),
+        flingAnimationSpec = rememberSplineBasedDecay()
+    )
 
 
     Scaffold(
@@ -68,7 +72,7 @@ fun ImageGridScreen(
                 modifier = Modifier,
                 showAlertDialog,
                 photosViewModel = photosViewModel,
-                scrollBehavior = topAppBarScrollBehavior
+                scrollBehavior = topAppBarScrollBehavior,
             )
         }
     ) { innerPadding ->
@@ -84,9 +88,7 @@ fun ImageGridScreen(
             )
         }
     }
-    FloatingProfileDialog(showAlertDialog, navHostController)
 
-    val context = LocalContext.current
 
     val readImagePermission = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -99,18 +101,17 @@ fun ImageGridScreen(
             appSettingsIntent.data = Uri.fromParts("package", context.packageName, null)
             context.startActivity(appSettingsIntent)
         }
+        else if(imageGroups.isEmpty()) photosViewModel.addPhotosGroupedByDate(context)
     }
 
 
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             readImagePermission.launch(android.Manifest.permission.READ_MEDIA_IMAGES)
-        }
-        else{
+        } else {
             readImagePermission.launch(android.Manifest.permission.READ_EXTERNAL_STORAGE)
         }
     }
-
 
 
 
@@ -128,22 +129,5 @@ fun ImageGridScreen(
                     bottomBarVisibility.value = true
                 }
             }
-    }
-
-    val rememberPermissionState = rememberPermissionState(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-    val readPhotosPermissionState = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        rememberPermissionState(android.Manifest.permission.READ_MEDIA_IMAGES)
-    } else {
-        null
-    }
-
-    LaunchedEffect(Unit){
-        if (rememberPermissionState.status.isGranted) {
-            if(list.isEmpty()) photosViewModel.refresh(context)
-        }
-        if(readPhotosPermissionState?.status?.isGranted == true){
-            if(list.isEmpty())
-                photosViewModel.refresh(context)
-        }
     }
 }

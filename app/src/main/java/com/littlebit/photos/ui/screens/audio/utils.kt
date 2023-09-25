@@ -1,10 +1,14 @@
 package com.littlebit.photos.ui.screens.audio
 
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.text.format.Formatter.formatFileSize
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,14 +48,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.littlebit.photos.model.AudioItem
 
 @Composable
-fun FileInfo(currentFile: MutableState<Audio>, removeFileInfo: () -> Unit = {}) {
+fun FileInfo(currentFile: MutableState<AudioItem>, removeFileInfo: () -> Unit = {}) {
+    val fileSize = formatFileSize(LocalContext.current, currentFile.value.size)
     Surface {
         Box(
             modifier = Modifier
@@ -70,8 +79,7 @@ fun FileInfo(currentFile: MutableState<Audio>, removeFileInfo: () -> Unit = {}) 
                         ),
                     contentScale = ContentScale.FillBounds,
                 )
-            }
-            else {
+            } else {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -90,7 +98,10 @@ fun FileInfo(currentFile: MutableState<Audio>, removeFileInfo: () -> Unit = {}) 
                 onClick = { removeFileInfo() }, modifier = Modifier
                     .align(Alignment.TopStart)
             ) {
-                Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                    contentDescription = "Back"
+                )
             }
             Column(
                 modifier = Modifier
@@ -99,7 +110,11 @@ fun FileInfo(currentFile: MutableState<Audio>, removeFileInfo: () -> Unit = {}) 
                     .padding(PaddingValues(12.dp)),
                 verticalArrangement = Arrangement.Center
             ) {
-                Spacer(modifier = Modifier.fillMaxHeight(0.3f).padding(22.dp))
+                Spacer(
+                    modifier = Modifier
+                        .fillMaxHeight(0.3f)
+                        .padding(22.dp)
+                )
                 Text(
                     text = currentFile.value.name,
                     style = MaterialTheme.typography.titleSmall,
@@ -108,7 +123,7 @@ fun FileInfo(currentFile: MutableState<Audio>, removeFileInfo: () -> Unit = {}) 
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = currentFile.value.size + ", ${currentFile.value.dateAdded}",
+                    text = fileSize + ", ${currentFile.value.dateAdded}",
                     style = MaterialTheme.typography.bodySmall,
                     overflow = TextOverflow.Ellipsis,
                     maxLines = 1
@@ -127,7 +142,11 @@ fun FileInfo(currentFile: MutableState<Audio>, removeFileInfo: () -> Unit = {}) 
                         .padding(20.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(imageVector = Icons.Outlined.Audiotrack, contentDescription = "Audio Icon", modifier = Modifier.size(32.dp))
+                    Icon(
+                        imageVector = Icons.Outlined.Audiotrack,
+                        contentDescription = "Audio Icon",
+                        modifier = Modifier.size(32.dp)
+                    )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = currentFile.value.path,
@@ -141,10 +160,14 @@ fun FileInfo(currentFile: MutableState<Audio>, removeFileInfo: () -> Unit = {}) 
                         .padding(20.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(imageVector = Icons.Outlined.CalendarMonth, contentDescription = "Calender Icon", modifier = Modifier.size(32.dp))
+                    Icon(
+                        imageVector = Icons.Outlined.CalendarMonth,
+                        contentDescription = "Calender Icon",
+                        modifier = Modifier.size(32.dp)
+                    )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Modified "+currentFile.value.dateAdded,
+                        text = "Modified " + currentFile.value.dateAdded,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -153,22 +176,24 @@ fun FileInfo(currentFile: MutableState<Audio>, removeFileInfo: () -> Unit = {}) 
     }
 }
 
+@Suppress("DEPRECATION")
 @Composable
 fun AudioItem(
-    audioFile: Audio,
+    audioFile: AudioItem,
     onClick: () -> Unit,
-    isSelectionInProcess: MutableState<Boolean>,
     audioViewModel: AudioViewModel,
     index: Int,
     showFileInfo: () -> Unit
 ) {
     val context = LocalContext.current
+    val isSelectionInProcess by audioViewModel.isSelectionInProcess.collectAsStateWithLifecycle()
     var showMore by remember {
         mutableStateOf(false)
     }
-    val interactionSource = remember {
-        MutableInteractionSource()
-    }
+    val backGround by animateColorAsState(targetValue = getAudioItemColor(audioFile), label = "")
+
+    val vibrator = ContextCompat.getSystemService(context, Vibrator::class.java)
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -179,16 +204,33 @@ fun AudioItem(
             Modifier
                 .fillMaxWidth()
                 .background(
-                    if (!audioFile.isSelected.value) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primary.copy(
-                        0.3f
-                    )
+                    backGround
                 )
                 .padding(PaddingValues(11.dp))
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = onClick
-                ),
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onLongPress = {
+                            if (!isSelectionInProcess) {
+                                audioViewModel.setSelectedAudio(index)
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    vibrator?.vibrate(
+                                        VibrationEffect.createOneShot(
+                                            50, // Duration in milliseconds
+                                            VibrationEffect.DEFAULT_AMPLITUDE
+                                        )
+                                    )
+                                } else {
+                                    // For older devices
+                                    vibrator?.vibrate(50) // Vibrate for 50 milliseconds
+                                }
+                            }
+                        },
+                        onTap = {
+                            if (isSelectionInProcess) audioViewModel.setSelectedAudio(index)
+                            else onClick()
+                        }
+                    )
+                },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Start
         ) {
@@ -241,7 +283,7 @@ fun AudioItem(
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = audioFile.size + ", ${audioFile.dateAdded}",
+                    text = formatFileSize(LocalContext.current, audioFile.size) + ", ${audioFile.dateAdded}",
                     style = MaterialTheme.typography.bodySmall,
                     overflow = TextOverflow.Ellipsis,
                     maxLines = 1
@@ -249,16 +291,15 @@ fun AudioItem(
             }
             Spacer(modifier = Modifier.weight(0.2f))
             IconButton(onClick = {
-                if (isSelectionInProcess.value) {
-                    audioViewModel.setSelectedAudio(index, isSelectionInProcess)
+                if (isSelectionInProcess) {
+                    audioViewModel.setSelectedAudio(index)
                 } else
                     showMore = !showMore
             }) {
-                val icon =
-                    if (isSelectionInProcess.value && audioFile.isSelected.value) Icons.Outlined.CheckCircle else if (isSelectionInProcess.value) Icons.Outlined.Circle else Icons.Outlined.MoreVert
-                val tint =
-                    if (isSelectionInProcess.value && audioFile.isSelected.value) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                val icon = getIcon(isSelectionInProcess, audioFile)
+                val tint = getTint(isSelectionInProcess, audioFile)
                 Icon(imageVector = icon, contentDescription = "More Options", tint = tint)
+
                 DropdownMenu(
                     expanded = showMore,
                     onDismissRequest = { showMore = false },
@@ -266,7 +307,11 @@ fun AudioItem(
                     modifier = Modifier.fillMaxWidth(0.4f),
                 ) {
                     DropdownMenuItem(text = { Text(text = "Select") }, onClick = {
-                        audioViewModel.setSelectedAudio(index, isSelectionInProcess)
+                        audioViewModel.setSelectedAudio(index)
+                        showMore = false
+                    })
+                    DropdownMenuItem(text = { Text(text = "Select All") }, onClick = {
+                        audioViewModel.selectAllAudio()
                         showMore = false
                     })
                     DropdownMenuItem(text = { Text(text = "Share") }, onClick = {
@@ -287,3 +332,21 @@ fun AudioItem(
     }
 
 }
+
+@Composable
+private fun getAudioItemColor(audioFile: AudioItem) =
+    if (!audioFile.isSelected.value) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primary.copy(
+        0.3f
+    )
+
+@Composable
+private fun getTint(
+    isSelectionInProcess: Boolean,
+    audioFile: AudioItem
+) = if (isSelectionInProcess && audioFile.isSelected.value) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+
+@Composable
+private fun getIcon(
+    isSelectionInProcess: Boolean,
+    audioFile: AudioItem
+) = if (isSelectionInProcess && audioFile.isSelected.value) Icons.Outlined.CheckCircle else if (isSelectionInProcess) Icons.Outlined.Circle else Icons.Outlined.MoreVert

@@ -56,7 +56,7 @@ fun SearchScreen(
     val searchItems = rememberSaveable {
         mutableStateOf(listOf<SearchViewModel.SearchItem>())
     }
-    val isInputFieldEmpty = remember{
+    val isInputFieldEmpty = remember {
         mutableStateOf(true)
     }
     Surface {
@@ -96,7 +96,7 @@ fun SearchTopBar(
     val inputText = rememberSaveable {
         mutableStateOf("")
     }
-    isInputFieldEmpty.value = inputText.value.isEmpty()
+
     val keyboardController = LocalSoftwareKeyboardController.current
     Row(
         Modifier
@@ -109,13 +109,16 @@ fun SearchTopBar(
             value = inputText.value,
             onValueChange = {
                 inputText.value = it
-                if(it.isNotEmpty()){
+                if (it.isNotEmpty()) {
                     searchItems.value = searchViewModel.getSearchItems(
                         photosViewModel,
                         videoViewModel,
                         inputText.value
                     )
+                } else {
+                    searchItems.value = listOf()
                 }
+                isInputFieldEmpty.value = it.isEmpty()
             },
             modifier = Modifier
                 .focusRequester(focusRequester)
@@ -147,7 +150,10 @@ fun SearchTopBar(
                         currentScreen.value = Screens.HomeScreen.route
                     },
                 ) {
-                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back Button")
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back Button"
+                    )
                 }
             },
             trailingIcon = {

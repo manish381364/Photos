@@ -1,6 +1,10 @@
 package com.littlebit.photos.ui.screens.images.details
 
+import android.app.Activity
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -15,6 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
 
@@ -26,6 +31,7 @@ fun ImageDetailsScreen(
     imageIndex: Int,
     listIndex: Int,
 ) {
+    val context = LocalContext.current
     val mediaList = photosViewModel.photoGroups.collectAsState().value
     val appBarsVisible = remember {
         mutableStateOf(true)
@@ -39,6 +45,15 @@ fun ImageDetailsScreen(
     BackHandler {
         appBarsVisible.value = true
         navHostController.navigateUp()
+    }
+    val trashLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            // Handle successful deletion
+            photosViewModel.removeImageFromGrid(listIndex, currentImageIndex)
+            Toast.makeText(context, "Moved to trash", Toast.LENGTH_SHORT).show()
+        }
     }
     Surface {
         Box(Modifier.fillMaxSize()) {
@@ -65,7 +80,8 @@ fun ImageDetailsScreen(
                 ImageDetailsBottomBar(
                     photosViewModel,
                     listIndex,
-                    currentImageIndex
+                    currentImageIndex,
+                    trashLauncher
                 )
             }
         }
