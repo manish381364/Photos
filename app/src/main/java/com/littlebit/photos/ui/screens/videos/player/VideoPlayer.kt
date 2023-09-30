@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.littlebit.photos.ui.screens.videos.player
 
 import android.net.Uri
