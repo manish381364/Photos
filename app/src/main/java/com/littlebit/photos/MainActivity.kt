@@ -1,7 +1,8 @@
 package com.littlebit.photos
 
+import android.content.pm.PackageManager
 import android.os.Bundle
-import android.view.MotionEvent
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -24,6 +25,7 @@ import com.littlebit.photos.ui.screens.images.PhotosViewModel
 import com.littlebit.photos.ui.screens.videos.VideoViewModel
 import com.littlebit.photos.ui.theme.PhotosTheme
 
+@Suppress("DEPRECATION")
 @RequiresApi(34)
 class MainActivity : ComponentActivity() {
     private val photosViewModel: PhotosViewModel by viewModels()
@@ -32,17 +34,34 @@ class MainActivity : ComponentActivity() {
     private val playAudioViewModel: PlayAudioViewModel by viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        photosViewModel.addPhotosGroupedByDate(this)
-        videoViewModel.addVideos(this)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        photosViewModel.addPhotosGroupedByDate(applicationContext)
+        videoViewModel.addVideosGroupedByDate(applicationContext)
         setContent {
             PhotosApp(photosViewModel, videoViewModel, audioViewModel, playAudioViewModel)
         }
     }
 
-    override fun onTouchEvent(event: MotionEvent?): Boolean {
-        return super.onTouchEvent(event)
+
+    @Deprecated("Deprecated in Java")
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            1001 -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    // Permission granted, you can now call deletePhoto() again.
+                } else {
+                    // Permission denied. You can inform the user or handle it accordingly.
+                    Toast.makeText(this, "Permission denied", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
+
 }
 
 

@@ -8,6 +8,9 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.rememberSplineBasedDecay
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -16,10 +19,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -29,31 +32,38 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
 import com.littlebit.photos.ui.screens.videos.VideoViewModel
 
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun VideosGridScreen(
     videoViewModel: VideoViewModel,
     bottomBarVisibility: MutableState<Boolean>,
     videoScreenListState: LazyListState,
-    navHostController: NavHostController
+    navHostController: NavHostController,
+    showAlertDialog: MutableState<Boolean>
 ) {
-    var lastScrollPosition by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
-    val topAppBarScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
-    val list = videoViewModel.videoGroups.collectAsState().value
+    var lastScrollPosition by remember { mutableIntStateOf(0) }
+    val videoGroups by videoViewModel.videoGroups.collectAsStateWithLifecycle()
+    val topAppBarScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(
+        state = rememberTopAppBarState(),
+        snapAnimationSpec = spring(Spring.StiffnessLow),
+        flingAnimationSpec = rememberSplineBasedDecay()
+    )
     Scaffold(
         containerColor = Color.Transparent,
         modifier = Modifier.nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
         topBar = {
-            VideoScreenTopBar(topAppBarScrollBehavior = topAppBarScrollBehavior)
+            VideoScreenTopBar(
+                topAppBarScrollBehavior = topAppBarScrollBehavior,
+                showAlertDialog,
+                videoViewModel
+            )
         },
     ) { innerPadding ->
         Box(
@@ -71,49 +81,43 @@ fun VideosGridScreen(
         }
     }
 
-    val launcher =
-        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-            if (!isGranted) {
-                Toast.makeText(context, "Permission denied", Toast.LENGTH_SHORT).show()
-                val appSettingsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                appSettingsIntent.data = Uri.fromParts("package", context.packageName, null)
-                context.startActivity(appSettingsIntent)
-            }
+
+
+    val readVideoPermission = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (!isGranted) {
+            // Permission denied, show a Toast message and navigate to a screen where the user can grant permissions
+            Toast.makeText(context, "Grant permission to continue", Toast.LENGTH_SHORT).show()
+            // open the app's settings page to allow the user to grant the permissions manually
+            val appSettingsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            appSettingsIntent.data = Uri.fromParts("package", context.packageName, null)
+            context.startActivity(appSettingsIntent)
         }
-
-    val permissionState =
-        rememberPermissionState(permission = android.Manifest.permission.READ_MEDIA_VIDEO)
-
-
-    // Request permission when the screen is first composed
-    LaunchedEffect(true) {
-        if (Build.VERSION.SDK_INT < 33)
-            launcher.launch(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-        else
-            launcher.launch(android.Manifest.permission.READ_MEDIA_VIDEO)
+        else if(videoGroups.isEmpty()) videoViewModel.addVideosGroupedByDate(context)
     }
 
-
-    LaunchedEffect(videoScreenListState) {
-        snapshotFlow { videoScreenListState.firstVisibleItemIndex }
-            .collect { firstVisibleItemIndex ->
-                val scrollDelta = firstVisibleItemIndex - lastScrollPosition
-                lastScrollPosition = firstVisibleItemIndex
-
-                if (scrollDelta > 0) {
-                    // Scrolling down
-                    bottomBarVisibility.value = false
-                } else if (scrollDelta < 0) {
-                    // Scrolling up
-                    bottomBarVisibility.value = true
-                }
-            }
-    }
 
     LaunchedEffect(Unit) {
-        if (permissionState.status.isGranted) {
-            if(list.isEmpty())
-                videoViewModel.refreshVideos(context)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            readVideoPermission.launch(android.Manifest.permission.READ_MEDIA_VIDEO)
+        } else {
+            readVideoPermission.launch(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+    }
+
+    LaunchedEffect(videoScreenListState) {
+        snapshotFlow { videoScreenListState.firstVisibleItemIndex }.collect { firstVisibleItemIndex ->
+            val scrollDelta = firstVisibleItemIndex - lastScrollPosition
+            lastScrollPosition = firstVisibleItemIndex
+
+            if (scrollDelta > 0) {
+                // Scrolling down
+                bottomBarVisibility.value = false
+            } else if (scrollDelta < 0) {
+                // Scrolling up
+                bottomBarVisibility.value = true
+            }
         }
     }
 }

@@ -87,8 +87,8 @@ dependencies{
     implementation 'androidx.compose.material:material-icons-extended'
 
     //Accompanist Permissions, UI System Controller
-    implementation 'com.google.accompanist:accompanist-permissions:0.33.1-alpha'
-    implementation 'com.google.accompanist:accompanist-systemuicontroller:0.33.1-alpha'
+    implementation 'com.google.accompanist:accompanist-permissions:0.33.2-alpha'
+    implementation 'com.google.accompanist:accompanist-systemuicontroller:0.33.2-alpha'
 
     //Coil and Glide for Image Loading
     implementation("io.coil-kt:coil-compose:2.4.0")
@@ -106,7 +106,7 @@ dependencies{
     implementation 'androidx.compose.runtime:runtime-livedata:1.6.0-alpha06'
 
     //Navigation
-    implementation('androidx.compose.ui:ui:1.5.1')
+    implementation('androidx.compose.ui:ui:1.5.2')
     implementation('androidx.navigation:navigation-compose:2.7.3')
 
     // Preview

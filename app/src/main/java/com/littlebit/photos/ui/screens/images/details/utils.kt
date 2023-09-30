@@ -1,25 +1,24 @@
 package com.littlebit.photos.ui.screens.images.details
 
-import android.Manifest
-import android.app.Activity
-import android.content.Intent
 import android.net.Uri
-import android.os.Build
-import android.provider.MediaStore
 import android.util.Log
-import android.widget.Toast
+import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.ActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
@@ -36,14 +35,18 @@ import androidx.compose.material.icons.twotone.CenterFocusStrong
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -51,6 +54,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -61,8 +65,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
-import androidx.core.app.ComponentActivity
 import androidx.navigation.NavHostController
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
@@ -245,39 +247,23 @@ fun ImageDetailsBottomBar(
     photosViewModel: PhotosViewModel,
     listIndex: Int,
     currentImageIndex: MutableIntState,
+    trashLauncher: ManagedActivityResultLauncher<IntentSenderRequest, ActivityResult>,
 ) {
-    val photoUri =
-        photosViewModel.photoGroups.collectAsState().value[listIndex].images[currentImageIndex.intValue]
-
     val context = LocalContext.current
-    val contentResolver = context.contentResolver
-    val urisToDelete = listOf(photoUri.uri)
-
-    val trashPendingIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        MediaStore.createTrashRequest(contentResolver, urisToDelete, true)
-    } else {
-        null
+    val showDeleteDialog = remember {
+        mutableStateOf(false)
     }
-    val trashIntentSender = trashPendingIntent?.intentSender
-    val trashLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            // Handle successful deletion
-            photosViewModel.deletePhoto(listIndex, currentImageIndex)
-            Toast.makeText(context, "Moved to trash", Toast.LENGTH_SHORT).show()
-        } else {
-            // Handle deletion failure or user cancellation
-            Toast.makeText(context, "Failed to move ", Toast.LENGTH_SHORT).show()
-
-        }
-    }
+    val shareLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {}
 
 
-    val shareIntent = remember {
-        Intent(Intent.ACTION_SEND)
-    }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {}
+
+
+
+
+
+
+
     BottomAppBar(
         Modifier
             .background(
@@ -296,12 +282,7 @@ fun ImageDetailsBottomBar(
     ) {
         Spacer(modifier = Modifier.weight(1f))
         IconButton(onClick = {
-            shareIntent.apply {
-                type = "image/*"
-                putExtra(Intent.EXTRA_STREAM, photoUri.uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            launcher.launch(Intent.createChooser(shareIntent, "Share Photo"))
+            photosViewModel.shareImage(listIndex, currentImageIndex.intValue, shareLauncher)
         }) {
             Icon(imageVector = Icons.Outlined.Share, contentDescription = "Share")
         }
@@ -318,38 +299,70 @@ fun ImageDetailsBottomBar(
             Icon(imageVector = Icons.TwoTone.CenterFocusStrong, contentDescription = "Lens")
         }
         Spacer(modifier = Modifier.weight(1f))
-        val deleteClickable by remember {
-            mutableStateOf(true)
-        }
         IconButton(
             onClick = {
-                try {
-                    if (trashPendingIntent == null) {
-                        if (photoUri.uri != null)
-                            contentResolver.delete(photoUri.uri, null, null)
-                    } else {
-                        trashLauncher.launch(
-                            trashIntentSender?.let { IntentSenderRequest.Builder(it).build() }
-                        )
-                    }
-                } catch (exception: SecurityException) {
-                    // Request permission from user
-                    Toast.makeText(
-                        context,
-                        "Failed to delete ${exception.message}",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    ActivityCompat.requestPermissions(
-                        context as ComponentActivity,
-                        arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
-                        1010
-                    )
-                }
+                photosViewModel.moveToTrash(
+                    context,
+                    listIndex,
+                    currentImageIndex.intValue,
+                    trashLauncher,
+                    showDeleteDialog
+                )
             },
-            enabled = deleteClickable
         ) {
             Icon(imageVector = Icons.Outlined.Delete, contentDescription = "Delete")
         }
         Spacer(modifier = Modifier.weight(1f))
+    }
+
+    ConfirmDeleteDialog(
+        listIndex,
+        currentImageIndex,
+        photosViewModel,
+        showDeleteDialog
+    )
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ConfirmDeleteDialog(
+    listIndex: Int,
+    imageIndex: MutableIntState,
+    photosViewModel: PhotosViewModel,
+    showDeleteDialog: MutableState<Boolean>
+) {
+    val context = LocalContext.current
+    AnimatedVisibility(visible = showDeleteDialog.value) {
+        ModalBottomSheet(
+            onDismissRequest = { showDeleteDialog.value = false },
+            sheetState = rememberModalBottomSheetState()
+        ) {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(text = "The picture will be deleted?", modifier = Modifier.padding(16.dp))
+            }
+            HorizontalDivider(Modifier.fillMaxWidth())
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        photosViewModel.deletePhoto(listIndex, imageIndex, context)
+                        showDeleteDialog.value = false
+                    }, contentAlignment = Alignment.Center
+            ) {
+                Text(text = "Delete", modifier = Modifier.padding(16.dp))
+            }
+            HorizontalDivider(Modifier.fillMaxWidth())
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        showDeleteDialog.value = false
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "Cancel", modifier = Modifier.padding(16.dp))
+            }
+        }
     }
 }

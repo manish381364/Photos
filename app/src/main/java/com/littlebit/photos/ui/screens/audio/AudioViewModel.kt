@@ -1,14 +1,18 @@
 package com.littlebit.photos.ui.screens.audio
 
 import android.content.Context
-import android.net.Uri
+import android.content.Intent
 import android.os.Build
-import androidx.annotation.RequiresApi
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.graphics.ImageBitmap
+import android.provider.MediaStore
+import android.text.format.Formatter.formatFileSize
+import android.util.Log
+import android.widget.Toast
+import androidx.activity.compose.ManagedActivityResultLauncher
+import androidx.activity.result.ActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.littlebit.photos.model.AudioItem
 import com.littlebit.photos.model.repository.MediaRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
@@ -21,71 +25,178 @@ import java.util.concurrent.Executors
 class AudioViewModel(
     private val repository: MediaRepository = MediaRepository()
 ) : ViewModel() {
-    private val _audioList = MutableStateFlow(mutableListOf<Audio>())
-    val audioList = _audioList
-    private val customDispatcher: ExecutorCoroutineDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+    private val _audioItemList = MutableStateFlow(mutableListOf<AudioItem>())
+    private val customDispatcher: ExecutorCoroutineDispatcher =
+        Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+    val audioList = _audioItemList
+    private val selectedAudioList = MutableStateFlow(hashMapOf<Long, Int>())
+    val selectedAudios = MutableStateFlow(0)
+    val isSelectionInProcess = MutableStateFlow(false)
+    val isLoading = MutableStateFlow(false)
 
-    @RequiresApi(Build.VERSION_CODES.Q)
     fun loadAudio(context: Context) {
-        viewModelScope.launch(Dispatchers.Default)  {
+        viewModelScope.launch(Dispatchers.Default) {
+            isLoading.value = true
             try {
                 val result = withContext(customDispatcher) {
                     repository.getAudioList(context)
                 }
-                _audioList.value = result
+                _audioItemList.value = result
             } catch (e: Exception) {
                 // Handle exceptions here
                 e.printStackTrace()
             }
+            isLoading.value = false
         }
     }
+
+    fun refreshAudioList(context: Context){
+        loadAudio(context)
+    }
+
     override fun onCleared() {
         super.onCleared()
         // Close the custom dispatcher to release resources
         customDispatcher.close()
     }
 
-    fun setSelectedAudio(audioIndex: Int, isSelectionInProcess: MutableState<Boolean>) {
-        _audioList.value[audioIndex].isSelected.value = !_audioList.value[audioIndex].isSelected.value
-        isSelectionInProcess.value = _audioList.value.any { it.isSelected.value }
+    fun setSelectedAudio(audioIndex: Int) {
+        _audioItemList.value[audioIndex].isSelected.value =
+            !_audioItemList.value[audioIndex].isSelected.value
+        isSelectionInProcess.value = _audioItemList.value.any { it.isSelected.value }
+        if (_audioItemList.value[audioIndex].isSelected.value) {
+            selectedAudioList.value[_audioItemList.value[audioIndex].id] = audioIndex
+            selectedAudios.value++
+        } else {
+            if (selectedAudioList.value.containsKey(_audioItemList.value[audioIndex].id)) {
+                selectedAudioList.value.remove(_audioItemList.value[audioIndex].id)
+                selectedAudios.value--
+            }
+        }
+        Log.d(
+            "AUDIO_SIZE_LIST",
+            "setSelectedAudio: ${selectedAudioList.value.size} ||  ${selectedAudios.value}"
+        )
     }
 
-    fun shareAudio(audioFile: Audio, context: Context) {
-        val shareIntent = android.content.Intent().apply {
-            action = android.content.Intent.ACTION_SEND
-            putExtra(android.content.Intent.EXTRA_STREAM, audioFile.uri)
+    fun selectAllAudio() {
+        viewModelScope.launch(Dispatchers.Default) {
+            _audioItemList.value.forEachIndexed { index, audio ->
+                audio.isSelected.value = true
+                selectedAudioList.value[audio.id] = index
+            }
+            isSelectionInProcess.value = true
+            selectedAudios.value = selectedAudioList.value.size
+        }
+    }
+
+    fun unSelectAllAudio() {
+        viewModelScope.launch(Dispatchers.Default) {
+            selectedAudioList.value.forEach { index ->
+                _audioItemList.value[index.value].isSelected.value = false
+            }
+            selectedAudioList.value.clear()
+            isSelectionInProcess.value = false
+            selectedAudios.value = 0
+            Log.d(
+                "AUDIO_SIZE_LIST",
+                "unSelectAll: ${selectedAudioList.value.size} ||  ${selectedAudios.value}"
+            )
+        }
+    }
+
+
+    fun shareAudio(audioItemFile: AudioItem, context: Context) {
+        val shareIntent = Intent().apply {
+            action = Intent.ACTION_SEND
+            putExtra(Intent.EXTRA_STREAM, audioItemFile.uri)
             type = "audio/*"
         }
-        android.content.Intent.createChooser(shareIntent, "Share Audio").apply {
-            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        Intent.createChooser(shareIntent, "Share Audio").apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }.also { intent ->
             context.startActivity(intent)
         }
     }
 
-    fun openWith(audioFile: Audio, context: Context) {
-        val openIntent = android.content.Intent().apply {
-            action = android.content.Intent.ACTION_VIEW
-            putExtra(android.content.Intent.EXTRA_STREAM, audioFile.uri)
+    fun openWith(audioItemFile: AudioItem, context: Context) {
+        val openIntent = Intent().apply {
+            action = Intent.ACTION_VIEW
+            putExtra(Intent.EXTRA_STREAM, audioItemFile.uri)
             type = "audio/*"
         }
-        android.content.Intent.createChooser(openIntent, "Open With").apply {
-            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        Intent.createChooser(openIntent, "Open With").apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }.also { intent ->
             context.startActivity(intent)
         }
+    }
+
+    fun getSelectedMemorySize(context: Context): String {
+        var totalSize = 0L
+        selectedAudioList.value.forEach { (_, pair) ->
+            totalSize += _audioItemList.value[pair].size
+        }
+        return formatFileSize(
+            context,
+            totalSize
+        )
+    }
+
+    fun shareSelectedAudios(): Intent {
+        val shareIntent = Intent().apply {
+            action = Intent.ACTION_SEND_MULTIPLE
+            putParcelableArrayListExtra(
+                Intent.EXTRA_STREAM,
+                ArrayList(selectedAudioList.value.map { (_, pair) ->
+                    _audioItemList.value[pair].uri
+                })
+            )
+            type = "audio/*"
+        }
+        return Intent.createChooser(shareIntent, "Share Audios")
+    }
+
+    fun moveToTrashSelectedAudios(
+        context: Context,
+        trashLauncher: ManagedActivityResultLauncher<IntentSenderRequest, ActivityResult>
+    ) {
+        val contentResolver = context.contentResolver
+        viewModelScope.launch(Dispatchers.Default) {
+            val selectedImages = selectedAudioList.value.map { (_, pair) ->
+                _audioItemList.value[pair].uri
+            }
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                selectedImages.forEach {
+                    contentResolver.delete(it, null, null)
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                selectedImages.forEach {
+                    contentResolver.delete(it, null, null)
+                }
+            } else {
+                val intentSender = MediaStore.createTrashRequest(
+                    contentResolver,
+                    selectedImages,
+                    true
+                ).intentSender
+                trashLauncher.launch(
+                    intentSender.let { IntentSenderRequest.Builder(it).build() }
+                )
+            }
+        }
+    }
+
+    fun removeAudiosFromList(context: Context) {
+        viewModelScope.launch(Dispatchers.Default) {
+            val indicesToRemove = mutableListOf<Int>()
+            selectedAudioList.value.forEach { item -> indicesToRemove.add(item.value) }
+            audioList.value = audioList.value.filterIndexed { index, _ ->  index !in indicesToRemove }.toMutableList()
+            selectedAudioList.value.clear()
+            selectedAudios.value = 0
+            isSelectionInProcess.value = false
+        }
+        Toast.makeText(context, "Moved to trash", Toast.LENGTH_SHORT).show()
     }
 }
 
-data class Audio(
-    val id: Long,
-    val name: String,
-    val path: String,
-    val duration: String,
-    val size: String,
-    val isMusic: Boolean,
-    val uri: Uri,
-    val thumbNail: ImageBitmap? = null,
-    val dateAdded: String = "",
-    var isSelected: MutableState<Boolean> = mutableStateOf(false  )
-)

@@ -1,14 +1,18 @@
 package com.littlebit.photos.ui.screens.home
 
 
+import android.content.Context
 import android.net.Uri
 import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import androidx.annotation.RequiresApi
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -18,15 +22,19 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Help
-import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.VideoCameraBack
 import androidx.compose.material.icons.outlined.ArrowDropDownCircle
 import androidx.compose.material.icons.outlined.Audiotrack
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DataExploration
-import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.VideoCameraBack
 import androidx.compose.material3.BottomAppBar
@@ -38,15 +46,14 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,25 +64,33 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.bumptech.glide.integration.compose.CrossFade
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.littlebit.photos.model.ImageGroup
+import com.littlebit.photos.model.PhotoItem
 import com.littlebit.photos.ui.navigation.Screens
+import com.littlebit.photos.ui.screens.audio.AudioViewModel
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
-import kotlinx.coroutines.delay
+import com.littlebit.photos.ui.screens.videos.VideoViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.*
 
+
+@Suppress("DEPRECATION")
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun ImageItem(
@@ -83,47 +98,79 @@ fun ImageItem(
     imageUri: Uri,
     onImageClick: (Uri) -> Unit = {},
     contentScale: ContentScale = ContentScale.Crop,
-    isFavorite: Boolean = false,
-    showFavorite: Boolean = false,
-    onClickFavorite: () -> Unit = {}
-) {
+    image: PhotoItem,
+    photosViewModel: PhotosViewModel,
+    listIndex: Int,
+    index: Int,
+
+    ) {
+    val selectedImages by photosViewModel.selectedImages.collectAsStateWithLifecycle()
+    val selectedImageList by photosViewModel.selectedImageList.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val vibrator = ContextCompat.getSystemService(context, Vibrator::class.java)
+    val size by animateDpAsState(targetValue = if (image.isSelected) 121.dp else 141.dp, label = "")
     Box(
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(141.dp)
+            .background(MaterialTheme.colorScheme.surfaceBright)
     ) {
         GlideImage(
             model = imageUri,
             contentDescription = null,
             modifier = modifier
-                .size(141.dp)
+                .size(size)
                 .padding(1.dp)
-                .clickable {
-                    onImageClick(imageUri)
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onLongPress = {
+                            if (selectedImages == 0) {
+                                photosViewModel.selectedImages.value++
+                                image.isSelected = true
+                                selectedImageList[image.id] = Pair(listIndex, index)
+                                // Trigger haptic feedback on long press
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    vibrator?.vibrate(
+                                        VibrationEffect.createOneShot(
+                                            50, // Duration in milliseconds
+                                            VibrationEffect.DEFAULT_AMPLITUDE
+                                        )
+                                    )
+                                } else {
+                                    // For older devices
+                                    vibrator?.vibrate(50) // Vibrate for 50 milliseconds
+                                }
+                            }
+                        },
+                        onTap = {
+                            if (selectedImages > 0) {
+                                image.isSelected = !image.isSelected
+                                if (image.isSelected) {
+                                    photosViewModel.selectedImages.value++
+                                    selectedImageList[image.id] = Pair(listIndex, index)
+                                } else {
+                                    photosViewModel.selectedImages.value--
+                                    selectedImageList.remove(image.id)
+                                }
+                            } else onImageClick(imageUri)
+                        }
+                    )
                 },
             contentScale = contentScale,
-            transition = CrossFade
+            transition = CrossFade,
         )
-        if (showFavorite) {
-            var isFav by rememberSaveable {
-                mutableStateOf(isFavorite)
-            }
-            val animateColor = animateColorAsState(
-                targetValue = if (isFav) Color.Red else MaterialTheme.colorScheme.onSurface,
-                label = "Favorite Icon Color"
-            )
-            IconButton(
-                onClick = {
-                    onClickFavorite()
-                    isFav = !isFav
-                },
-                colors = IconButtonDefaults.iconButtonColors(contentColor = animateColor.value),
-                modifier = Modifier.align(Alignment.TopEnd)
-            ) {
-                Icon(
-                    imageVector = if (isFav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                    contentDescription = "Favorite Icon"
-                )
-            }
-        }
+        val icon = if (image.isSelected) Icons.Filled.CheckCircle else Icons.Outlined.Circle
+        val tint = if (selectedImages > 0) {
+            if (image.isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        } else Color.Transparent
+
+        Icon(
+            imageVector = icon, contentDescription = "Circle", tint = tint, modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(2.dp)
+        )
+
+
     }
 }
 
@@ -133,13 +180,16 @@ fun ImageItem(
 fun ImageGroupSection(
     imageGroup: ImageGroup,
     imageIndex: MutableState<Int>,
+    listIndex: Int,
+    photosViewModel: PhotosViewModel,
     onImageClick: (index: Int) -> Unit
 ) {
-    // Show date or any other header for the group if desired
     Column(
         Modifier.fillMaxWidth(1f)
     ) {
-        DateWithMarkButton(date = imageGroup.date)
+        DateWithMarkButton(date = imageGroup.date) {
+            photosViewModel.markImages(imageGroup, listIndex)
+        }
         Spacer(modifier = Modifier.height(6.dp))
         FlowRow(
             Modifier.fillMaxWidth(1f),
@@ -155,14 +205,17 @@ fun ImageGroupSection(
                         onImageClick(index)
                     },
                     ContentScale.Crop,
-                    isFavorite = image.isFavorite,
-                ) {
-                    image.isFavorite = !image.isFavorite
-                }
+                    image,
+                    photosViewModel,
+                    listIndex = listIndex,
+                    index = index
+                )
             }
         }
     }
+
 }
+
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -171,27 +224,27 @@ fun ImageGridList(
     photosViewModel: PhotosViewModel,
     scrollState: LazyListState
 ) {
-    var imageGroups by remember {
-        mutableStateOf(listOf<ImageGroup>())
-    }
-    photosViewModel.photoGroups.collectAsState().apply {
-        imageGroups = value
-    }
-
+    val imageGroups by photosViewModel.photoGroups.collectAsStateWithLifecycle()
+    val isLoading by photosViewModel.isLoading.collectAsStateWithLifecycle()
     val imageIndex = remember {
         mutableIntStateOf(0)
     }
     LazyColumn(
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
         modifier = Modifier.fillMaxSize(),
-        state = scrollState
+        state = scrollState,
     ) {
         item {
             Spacer(modifier = Modifier.height(100.dp))
         }
         items(imageGroups.size) { index ->
             val imageGroup = imageGroups[index]
-            ImageGroupSection(imageGroup, imageIndex) { clickedImageIndex ->
+            ImageGroupSection(
+                imageGroup,
+                imageIndex,
+                listIndex = index,
+                photosViewModel
+            ) { clickedImageIndex ->
                 navHostController.navigate(Screens.ImageDetailsScreen.route + "/${clickedImageIndex}/${index}") {
                     launchSingleTop = true
                 }
@@ -203,17 +256,13 @@ fun ImageGridList(
     }
 
     if (imageGroups.isEmpty()) {
-        val showLoading = photosViewModel.isLoading.collectAsState()
-        var notFound by rememberSaveable {
-            mutableStateOf(false)
-        }
         Box(
             Modifier
                 .fillMaxSize()
                 .padding(PaddingValues(20.dp)),
             contentAlignment = Alignment.Center
         ) {
-            if (notFound) {
+            if (!isLoading) {
                 Column(
                     Modifier
                         .fillMaxSize(),
@@ -233,7 +282,7 @@ fun ImageGridList(
                     )
                 }
             }
-            if (showLoading.value) {
+            else {
                 CircularProgressIndicator(
                     Modifier
                         .align(Alignment.Center),
@@ -241,22 +290,17 @@ fun ImageGridList(
                 )
             }
         }
-
-        LaunchedEffect(Unit) {
-            delay(500)
-            if (!showLoading.value && imageGroups.isEmpty()) {
-                notFound = true
-            }
-        }
     }
 }
+
 
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun DateWithMarkButton(
     modifier: Modifier = Modifier,
-    date: String = LocalDate.now().format(DateTimeFormatter.ofPattern("EEE, dd MMM")).toString()
+    date: String = LocalDate.now().format(DateTimeFormatter.ofPattern("EEE, dd MMM")).toString(),
+    onButtonClick: () -> Unit = {}
 ) {
     Row(
         modifier
@@ -270,9 +314,7 @@ fun DateWithMarkButton(
             text = date,
             style = MaterialTheme.typography.labelLarge
         )
-        IconButton(onClick = {
-
-        }) {
+        IconButton(onClick = { onButtonClick() }) {
             Icon(imageVector = Icons.Outlined.CheckCircle, contentDescription = "Check Circle")
         }
     }
@@ -290,12 +332,13 @@ fun HomeScreenTopBar(
     modifier: Modifier = Modifier,
     showAlertDialog: MutableState<Boolean>,
     photosViewModel: PhotosViewModel,
-    scrollBehavior: TopAppBarScrollBehavior
+    scrollBehavior: TopAppBarScrollBehavior,
 ) {
     val isImageLoading = remember {
         mutableStateOf(false)
     }
     val context = LocalContext.current
+
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.surface,
@@ -303,22 +346,19 @@ fun HomeScreenTopBar(
         ),
         title = {
             Box(Modifier.fillMaxWidth()) {
-                Row(
-                    modifier
-                        .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Bit Photos",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+
+                Text(
+                    text = "Bit Photos",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+
                 AsyncImage(
                     model = profile_image,
                     contentDescription = "",
                     modifier = Modifier
+                        .padding(4.dp)
                         .size(32.dp)
                         .clip(CircleShape)
                         .align(Alignment.BottomEnd)
@@ -338,7 +378,7 @@ fun HomeScreenTopBar(
                         isImageLoading.value = false
                     }
                 )
-                androidx.compose.animation.AnimatedVisibility(visible = isImageLoading.value) {
+                AnimatedVisibility(visible = isImageLoading.value, modifier = Modifier.align(Alignment.BottomEnd)) {
                     CircularProgressIndicator(
                         Modifier
                             .size(20.dp),
@@ -347,7 +387,8 @@ fun HomeScreenTopBar(
                 }
             }
         },
-        scrollBehavior = scrollBehavior
+        scrollBehavior = scrollBehavior,
+        modifier = modifier
     )
 }
 
@@ -360,80 +401,116 @@ fun HomeScreenBottomBar(
     audioScreenListState: LazyListState,
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
-    val activeColor = MaterialTheme.colorScheme.primary.copy(0.6f)
     val coroutineScope = rememberCoroutineScope()
+    val photosSelected = currentScreen.value == Screens.HomeScreen.route
+    val searchSelected = currentScreen.value == Screens.SearchScreen.route
+    val audioSelected = currentScreen.value == Screens.AudioListScreen.route
+    val videoSelected = currentScreen.value == Screens.VideoGridScreen.route
+    val photoIcon = if (photosSelected) Icons.Filled.Image else Icons.Outlined.Image
+    val searchIcon = if (searchSelected) Icons.Filled.Search else Icons.Outlined.Search
+    val audioIcon = if (audioSelected) Icons.Filled.Audiotrack else Icons.Outlined.Audiotrack
+    val videoIcon =
+        if (videoSelected) Icons.Filled.VideoCameraBack else Icons.Outlined.VideoCameraBack
+    val onPhotoIconClick =
+        getOnPhotoIconClick(imageScreenListState, photosSelected, coroutineScope, currentScreen)
+    val onSearchIconClick = getOnSearchIconClick(keyboardController, currentScreen)
+    val onAudioIconClick =
+        getOnAudioIconClick(audioScreenListState, audioSelected, coroutineScope, currentScreen)
+    val onVideoClickIcon =
+        getOnVideoClickIcon(videoScreenListState, videoSelected, coroutineScope, currentScreen)
     BottomAppBar(
         modifier
             .background(
-                Brush.verticalGradient(
-                    listOf(
-                        BottomAppBarDefaults.containerColor.copy(0.3f),
-                        BottomAppBarDefaults.containerColor.copy(0.5f),
-                        BottomAppBarDefaults.containerColor.copy(0.7f),
-                        BottomAppBarDefaults.containerColor.copy(0.9f),
-                        BottomAppBarDefaults.containerColor
-                    )
-                ),
+                Brush.verticalGradient(getBottomBarContainerColor()),
                 shape = RoundedCornerShape(topStart = 90.dp, topEnd = 90.dp)
             ),
         containerColor = Color.Transparent
     ) {
         Spacer(modifier = Modifier.weight(1f))
-        IconButton(
-            onClick = {
-                if (imageScreenListState.firstVisibleItemIndex > 2 && currentScreen.value == Screens.HomeScreen.route) {
-                    coroutineScope.launch {
-                        imageScreenListState.animateScrollToItem(0)
-                    }
-                } else currentScreen.value = Screens.HomeScreen.route
-            },
-            colors = IconButtonDefaults.iconButtonColors(containerColor = if (currentScreen.value == Screens.HomeScreen.route) activeColor else Color.Transparent)
-        ) {
-            Icon(imageVector = Icons.Filled.Image, contentDescription = "Image Icon")
-        }
-        Spacer(modifier = Modifier.weight(1f))
-        IconButton(
-            onClick = {
-                keyboardController?.show()
-                currentScreen.value = Screens.SearchScreen.route
-            },
-            colors = IconButtonDefaults.iconButtonColors(containerColor = if (currentScreen.value == Screens.SearchScreen.route) activeColor else Color.Transparent)
-        ) {
-            Icon(imageVector = Icons.Filled.Search, contentDescription = "Search Icon")
-        }
-        Spacer(modifier = Modifier.weight(1f))
-        IconButton(
-            onClick = {
-                if (imageScreenListState.firstVisibleItemIndex > 2 && currentScreen.value == Screens.AudioListScreen.route)
-                    coroutineScope.launch {
-                        audioScreenListState.animateScrollToItem(0)
-                    }
-                else currentScreen.value = Screens.AudioListScreen.route
-            },
-            colors = IconButtonDefaults.iconButtonColors(containerColor = if (currentScreen.value == Screens.AudioListScreen.route) activeColor else Color.Transparent)
-        ) {
-            val icon = Icons.Outlined.Audiotrack
-            Icon(imageVector = icon, contentDescription = "Audio Track Icon")
-        }
-        Spacer(modifier = Modifier.weight(1f))
+        NavigationBarItem(
+            selected = photosSelected,
+            onClick = { onPhotoIconClick() },
+            icon = { Icon(imageVector = photoIcon, contentDescription = "Image Icon") })
 
-        IconButton(
-            onClick = {
-                if (videoScreenListState.firstVisibleItemIndex > 2 && currentScreen.value == Screens.VideoGridScreen.route)
-                    coroutineScope.launch {
-                        videoScreenListState.animateScrollToItem(0)
-                    }
-                else currentScreen.value = Screens.VideoGridScreen.route
-            },
-            colors = IconButtonDefaults.iconButtonColors(containerColor = if (currentScreen.value == Screens.VideoGridScreen.route) activeColor else Color.Transparent),
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.VideoCameraBack,
-                contentDescription = "Video Camera Icon"
-            )
-        }
+        Spacer(modifier = Modifier.weight(1f))
+        NavigationBarItem(
+            selected = searchSelected,
+            onClick = { onSearchIconClick() },
+            icon = { Icon(imageVector = searchIcon, contentDescription = "Search Icon") })
+
+        Spacer(modifier = Modifier.weight(1f))
+        NavigationBarItem(
+            selected = audioSelected,
+            onClick = { onAudioIconClick() },
+            icon = { Icon(imageVector = audioIcon, contentDescription = "Audio Track Icon") })
+
+        Spacer(modifier = Modifier.weight(1f))
+        NavigationBarItem(
+            selected = videoSelected,
+            onClick = { onVideoClickIcon() },
+            icon = { Icon(imageVector = videoIcon, contentDescription = "Video Camera Icon") })
         Spacer(modifier = Modifier.weight(1f))
     }
+}
+
+@Composable
+private fun getBottomBarContainerColor() = listOf(
+    BottomAppBarDefaults.containerColor.copy(0.3f),
+    BottomAppBarDefaults.containerColor.copy(0.5f),
+    BottomAppBarDefaults.containerColor.copy(0.7f),
+    BottomAppBarDefaults.containerColor.copy(0.9f),
+    BottomAppBarDefaults.containerColor
+)
+
+@Composable
+private fun getOnVideoClickIcon(
+    videoScreenListState: LazyListState,
+    videoSelected: Boolean,
+    coroutineScope: CoroutineScope,
+    currentScreen: MutableState<String>
+): () -> Unit = {
+    if (videoScreenListState.firstVisibleItemIndex > 2 && videoSelected)
+        coroutineScope.launch {
+            videoScreenListState.animateScrollToItem(0)
+        }
+    else currentScreen.value = Screens.VideoGridScreen.route
+}
+
+@Composable
+private fun getOnAudioIconClick(
+    audioScreenListState: LazyListState,
+    audioSelected: Boolean,
+    coroutineScope: CoroutineScope,
+    currentScreen: MutableState<String>
+): () -> Unit = {
+    if (audioScreenListState.firstVisibleItemIndex > 2 && audioSelected)
+        coroutineScope.launch {
+            audioScreenListState.animateScrollToItem(0)
+        }
+    else currentScreen.value = Screens.AudioListScreen.route
+}
+
+@Composable
+private fun getOnSearchIconClick(
+    keyboardController: SoftwareKeyboardController?,
+    currentScreen: MutableState<String>
+): () -> Unit = {
+    keyboardController?.show()
+    currentScreen.value = Screens.SearchScreen.route
+}
+
+@Composable
+private fun getOnPhotoIconClick(
+    imageScreenListState: LazyListState,
+    photosSelected: Boolean,
+    coroutineScope: CoroutineScope,
+    currentScreen: MutableState<String>
+): () -> Unit = {
+    if (imageScreenListState.firstVisibleItemIndex > 2 && photosSelected) {
+        coroutineScope.launch {
+            imageScreenListState.scrollToItem(0, 2)
+        }
+    } else currentScreen.value = Screens.HomeScreen.route
 }
 
 @Composable
@@ -636,6 +713,51 @@ fun DialogItem(icon: ImageVector, title: String, onClick: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodyMedium
         )
+    }
+}
+
+
+fun getTotalMemorySize(
+    photosViewModel: PhotosViewModel,
+    audioViewModel: AudioViewModel,
+    videoViewModel: VideoViewModel,
+    context: Context
+): String {
+    val totalSelectedImages = photosViewModel.selectedImages.value
+    val totalSelectedAudios = audioViewModel.selectedAudios.value
+    return if (totalSelectedImages > 0) {
+        photosViewModel.getSelectedMemorySize(context)
+    } else if (totalSelectedAudios > 0) {
+        audioViewModel.getSelectedMemorySize(context)
+    } else {
+        videoViewModel.getSelectedMemorySize(context)
+    }
+}
+
+
+fun getTotalSelected(
+    audioSelectionInProgress: Boolean,
+    totalSelectedAudios: Int,
+    photosSelectionInProgress: Boolean,
+    totalSelectedImages: Int,
+    totalSelectedVideos: Int
+) =
+    if (audioSelectionInProgress) totalSelectedAudios else if (photosSelectionInProgress) totalSelectedImages else totalSelectedVideos
+
+
+fun removeAllSelected(
+    audioSelectionInProgress: Boolean,
+    audioViewModel: AudioViewModel,
+    videoSelectionInProgress: Boolean,
+    videoViewModel: VideoViewModel,
+    photosViewModel: PhotosViewModel
+): () -> Unit = {
+    if (audioSelectionInProgress) {
+        audioViewModel.unSelectAllAudio()
+    } else if (videoSelectionInProgress) {
+        videoViewModel.unSelectAllVideos()
+    } else {
+        photosViewModel.unSelectAllImages()
     }
 }
 

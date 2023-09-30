@@ -12,7 +12,7 @@
         </deviceKey>
       </Target>
     </runningDeviceTargetSelectedWithDropDown>
-    <timeTargetWasSelectedWithDropDown value="2023-09-25T07:23:43.530694400Z" />
+    <timeTargetWasSelectedWithDropDown value="2023-09-29T11:34:38.263026300Z" />
     <runningDeviceTargetsSelectedWithDialog>
       <Target>
         <type value="RUNNING_DEVICE_TARGET" />
@@ -20,6 +20,15 @@
           <Key>
             <type value="SERIAL_NUMBER" />
             <value value="ZD222BHDQR" />
+          </Key>
+        </deviceKey>
+      </Target>
+      <Target>
+        <type value="RUNNING_DEVICE_TARGET" />
+        <deviceKey>
+          <Key>
+            <type value="SERIAL_NUMBER" />
+            <value value="Z5OFIFGQ99999999" />
           </Key>
         </deviceKey>
       </Target>

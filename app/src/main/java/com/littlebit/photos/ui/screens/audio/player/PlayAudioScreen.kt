@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.littlebit.photos.ui.screens.audio.player
 
 
@@ -82,7 +84,7 @@ import androidx.compose.ui.window.SecureFlagPolicy
 import androidx.navigation.NavHostController
 import androidx.palette.graphics.Palette
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
-import com.littlebit.photos.ui.screens.audio.Audio
+import com.littlebit.photos.model.AudioItem
 import com.littlebit.photos.ui.screens.audio.AudioViewModel
 import com.littlebit.photos.ui.screens.audio.FileInfo
 import com.littlebit.photos.ui.screens.videos.grid.isLandscape
@@ -124,11 +126,11 @@ fun PlayAudioScreen(
 fun XPlayerScreen(
     playAudioViewModel: PlayAudioViewModel,
     audioViewModel: AudioViewModel,
-    audioFile: Audio,
+    audioItemFile: AudioItem,
     navController: NavHostController
 ) {
 
-    val audioThumbNail = audioFile.thumbNail
+    val audioThumbNail = audioItemFile.thumbNail
     val progress = playAudioViewModel.playbackProgress.collectAsState()
     val dominantColor = if (audioThumbNail != null) getDominantColor(audioThumbNail) else remember {
         mutableStateOf(Color.Magenta.copy(0.7f))
@@ -154,11 +156,11 @@ fun XPlayerScreen(
                     Modifier,
                     navController,
                     playAudioViewModel,
-                    audioFile,
+                    audioItemFile,
                     audioViewModel
                 )
                 AudioThumbNail(audioThumbNail)
-                MarqueeText(text = audioFile.name)
+                MarqueeText(text = audioItemFile.name)
                 SliderWithTimer(
                     progress.value,
                     playAudioViewModel.getDuration(),
@@ -384,7 +386,7 @@ fun XPlayerTopBar(
     modifier: Modifier = Modifier,
     navController: NavHostController,
     playAudioViewModel: PlayAudioViewModel,
-    audio: Audio,
+    audioItem: AudioItem,
     audioViewModel: AudioViewModel
 ) {
     val showDropDownMenu = rememberSaveable {
@@ -412,7 +414,7 @@ fun XPlayerTopBar(
         }
         Spacer(modifier = Modifier.width(12.dp))
         IconButton(onClick = { showDropDownMenu.value = true }) {
-            XPlayerTopBarMenu(showDropDownMenu, audio, audioViewModel)
+            XPlayerTopBarMenu(showDropDownMenu, audioItem, audioViewModel)
             Icon(imageVector = Icons.Outlined.MoreVert, contentDescription = "More Options")
         }
     }
@@ -422,7 +424,7 @@ fun XPlayerTopBar(
 @Composable
 fun XPlayerTopBarMenu(
     showDropDownMenu: MutableState<Boolean> = mutableStateOf(true),
-    audio: Audio,
+    audioItem: AudioItem,
     audioViewModel: AudioViewModel
 ) {
     val context = LocalContext.current
@@ -430,11 +432,11 @@ fun XPlayerTopBarMenu(
         mutableStateOf(false)
     }
     val file = remember {
-        mutableStateOf(audio)
+        mutableStateOf(audioItem)
     }
     val menuItems = listOf(
         Pair("Open with") {
-            audioViewModel.openWith(audio, context)
+            audioViewModel.openWith(audioItem, context)
             showDropDownMenu.value = false
         },
         Pair("File info") {
