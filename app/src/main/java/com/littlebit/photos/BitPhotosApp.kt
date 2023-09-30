@@ -11,7 +11,7 @@ class BitPhotosApp : Application() {
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationChannel = NotificationChannel(
-                "water_notification",
+                "main_channel",
                 "Water",
                 NotificationManager.IMPORTANCE_LOW
             )
