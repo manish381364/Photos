@@ -1,5 +1,5 @@
 # Photos App - Displaying Photos and Videos with Jetpack Compose
-<img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" alt="App_Icon" width="30">
+<img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" alt="App_Icon" width="80">
 Photos App Logo
 
 The Photos App is a modern and user-friendly Android application developed using Jetpack Compose and Kotlin, following the MVVM (Model-View-ViewModel) architecture. It allows users to effortlessly browse and view both photos and videos from their device's internal storage. The app leverages the power of Jetpack Compose, a modern UI toolkit, to provide a seamless and engaging user experience.
@@ -12,7 +12,9 @@ The Photos App is a modern and user-friendly Android application developed using
 - **Photos Grid**: The Photos Grid screen beautifully presents the user's photos in a grid layout, allowing for easy browsing and selection. Jetpack Compose animations enhance the overall interaction.
 
 - **Videos Grid**: Users can explore and watch their favorite videos using the Videos Grid screen, providing a fluid and responsive video playback experience.
-
+  
+## Screenshot
+<img src="app/src/main/res/drawable/screenshot.png" alt="App_Icon" width="300">
 
 ## Code Sample - HomeScreen
 
@@ -214,7 +216,7 @@ fun HomeScreen(
         }
     }
 }
-
+```
 ## MVVM Architecture
  The Photos App follows the MVVM (Model-View-ViewModel) architecture:
  
