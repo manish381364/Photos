@@ -3,6 +3,7 @@
 package com.littlebit.photos.ui.screens.audio.player
 
 
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
@@ -38,9 +39,11 @@ import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.outlined.Audiotrack
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material.icons.outlined.RepeatOn
 import androidx.compose.material.icons.outlined.RepeatOne
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Shuffle
+import androidx.compose.material.icons.outlined.ShuffleOn
 import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material.icons.outlined.SkipPrevious
 import androidx.compose.material3.DropdownMenu
@@ -56,9 +59,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -81,6 +85,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.SecureFlagPolicy
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.palette.graphics.Palette
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
@@ -98,25 +103,37 @@ fun PlayAudioScreen(
     audioFileIndex: Int,
     navController: NavHostController,
 ) {
-    val audioList = audioViewModel.audioList.collectAsState().value
+    val audioList = audioViewModel.audioList.collectAsStateWithLifecycle().value
+    val currentIndex = rememberSaveable {
+        mutableIntStateOf(audioFileIndex)
+    }
     val audioFile = audioList[audioFileIndex]
     val uri = audioFile.uri
     val context = LocalContext.current
-    val state = playAudioViewModel.getPlayBackState()
+    val state = playAudioViewModel.playbackState.collectAsStateWithLifecycle().value
     val systemUiController = rememberSystemUiController()
     systemUiController.setStatusBarColor(Color.Transparent, darkIcons = false)
     MaterialTheme(darkColorScheme()) {
-        XPlayerScreen(playAudioViewModel, audioViewModel, audioFile, navController)
+        XPlayerScreen(playAudioViewModel, audioViewModel, audioList, navController, currentIndex)
     }
-    playAudioViewModel.updatePlayBackProgress()
-    LaunchedEffect(Unit) {
-        if(state == PlaybackState.IDLE || state == PlaybackState.PAUSED || state == PlaybackState.COMPLETED) {
+    LaunchedEffect(state) {
+        if (state == PlaybackState.IDLE) {
+            Log.d("INSIDE_LAUNCHED_EFFECT_IDLE", "PlayAudioScreen: $state")
             playAudioViewModel.play(uri, context)
         }
+        else if(state == PlaybackState.STOP){
+            Log.d("INSIDE_LAUNCHED_EFFECT_STOP", "PlayAudioScreen: $state")
+            playAudioViewModel.playNext(audioList, currentIndex, context, false)
+        }
     }
+
+
     BackHandler {
+        playAudioViewModel.isLooping.value = false
+        playAudioViewModel.isListLooping.value = false
         playAudioViewModel.pause()
         playAudioViewModel.playbackProgress.value = 0
+        playAudioViewModel.setPlayBackState(PlaybackState.IDLE)
         navController.popBackStack()
     }
 }
@@ -126,18 +143,20 @@ fun PlayAudioScreen(
 fun XPlayerScreen(
     playAudioViewModel: PlayAudioViewModel,
     audioViewModel: AudioViewModel,
-    audioItemFile: AudioItem,
-    navController: NavHostController
+    audioList: MutableList<AudioItem>,
+    navController: NavHostController,
+    currentIndex: MutableIntState
 ) {
 
-    val audioThumbNail = audioItemFile.thumbNail
-    val progress = playAudioViewModel.playbackProgress.collectAsState()
-    val dominantColor = if (audioThumbNail != null) getDominantColor(audioThumbNail) else remember {
-        mutableStateOf(Color.Magenta.copy(0.7f))
-    }
+    val audioThumbNail = audioList[currentIndex.intValue].thumbNail
+    val progress = playAudioViewModel.playbackProgress.collectAsStateWithLifecycle()
+    val dominantColor =
+        if (audioList[currentIndex.intValue].thumbNail != null) getDominantColor(audioList[currentIndex.intValue].thumbNail) else {
+            Color.Magenta.copy(0.7f)
+        }
     val backGroundColor = listOf(
         Color.Black.copy(0.9f),
-        dominantColor.value,
+        dominantColor,
         Color.Black.copy(0.9f)
     )
     Surface {
@@ -156,23 +175,28 @@ fun XPlayerScreen(
                     Modifier,
                     navController,
                     playAudioViewModel,
-                    audioItemFile,
+                    audioList[currentIndex.intValue],
                     audioViewModel
                 )
                 AudioThumbNail(audioThumbNail)
-                MarqueeText(text = audioItemFile.name)
+                MarqueeText(text = audioList[currentIndex.intValue].displayName)
                 SliderWithTimer(
                     progress.value,
                     playAudioViewModel.getDuration(),
                     timeDuration = playAudioViewModel.getTimeDuration(),
                     currentTime = playAudioViewModel.getCurrentTimeDuration()
                 ) {
-                    playAudioViewModel.seekTo(it)
+                    playAudioViewModel.run {
+                        setPlayBackState(PlaybackState.SEEKING)
+                        seekTo(it)
+                        setStateAfterSeek()
+                    }
                 }
-                PlayBackController(playAudioViewModel)
+                PlayBackController(playAudioViewModel, audioViewModel, currentIndex)
             }
         }
     }
+
 }
 
 
@@ -202,30 +226,30 @@ fun MarqueeText(text: String) {
     )
 }
 
-@Composable
-fun getDominantColor(audioThumbNail: ImageBitmap?): MutableState<Color> {
-    val dominantColor = remember { mutableStateOf(Color.Transparent) }
 
+fun getDominantColor(audioThumbNail: ImageBitmap?): Color {
     // Use the LaunchedEffect to extract the dominant color when the image is loaded
-    LaunchedEffect(audioThumbNail) {
-        if (audioThumbNail != null) {
-            val palette = Palette.Builder(audioThumbNail.asAndroidBitmap()).generate()
-            val dominantSwatch = palette.dominantSwatch
-            dominantColor.value = dominantSwatch?.rgb?.let {
-                Color(
-                    red = (it shr 16 and 0xFF) / 255.0f,
-                    green = (it shr 8 and 0xFF) / 255.0f,
-                    blue = (it and 0xFF) / 255.0f
-                )
-            } ?: Color.Transparent
-        }
+    var dominantColor = Color.Transparent
+    if (audioThumbNail != null) {
+        val palette = Palette.Builder(audioThumbNail.asAndroidBitmap()).generate()
+        val dominantSwatch = palette.dominantSwatch
+        dominantColor = dominantSwatch?.rgb?.let {
+            Color(
+                red = (it shr 16 and 0xFF) / 255.0f,
+                green = (it shr 8 and 0xFF) / 255.0f,
+                blue = (it and 0xFF) / 255.0f
+            )
+        } ?: Color.Transparent
     }
+
     return dominantColor
 }
 
 
 @Composable
-fun AudioThumbNail(audioThumbNail: ImageBitmap?) {
+fun AudioThumbNail(
+    audioThumbNail: ImageBitmap?,
+) {
     Box(
         Modifier
             .fillMaxWidth()
@@ -235,7 +259,7 @@ fun AudioThumbNail(audioThumbNail: ImageBitmap?) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(if(isLandscape()) 0.5f else 0.7f)
+                    .fillMaxHeight(if (isLandscape()) 0.5f else 0.7f)
                     .clip(MaterialTheme.shapes.extraLarge)
                     .background(Color.White.copy(0.4f))
             ) {
@@ -252,7 +276,7 @@ fun AudioThumbNail(audioThumbNail: ImageBitmap?) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(if(isLandscape()) 0.5f else 0.7f)
+                    .fillMaxHeight(if (isLandscape()) 0.5f else 0.7f)
                     .clip(MaterialTheme.shapes.extraLarge)
                     .background(Color.White.copy(0.1f)),
                 contentAlignment = Alignment.Center
@@ -262,7 +286,7 @@ fun AudioThumbNail(audioThumbNail: ImageBitmap?) {
                     contentDescription = "Image",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .fillMaxHeight(0.6f)
+                        .fillMaxHeight(0.6f),
                 )
             }
         }
@@ -272,28 +296,40 @@ fun AudioThumbNail(audioThumbNail: ImageBitmap?) {
 
 @Composable
 fun PlayBackController(
-    playAudioViewModel: PlayAudioViewModel
+    playAudioViewModel: PlayAudioViewModel,
+    audioViewModel: AudioViewModel,
+    currentIndex: MutableIntState,
 ) {
-    val state = playAudioViewModel.playbackState.collectAsState()
-    val isLooping = playAudioViewModel.isLooping.collectAsState()
+    val state by playAudioViewModel.playbackState.collectAsStateWithLifecycle()
+    val isLooping by playAudioViewModel.isLooping.collectAsStateWithLifecycle()
+    val isShuffling by playAudioViewModel.isShuffling.collectAsStateWithLifecycle()
+    val isListLooping by playAudioViewModel.isListLooping.collectAsStateWithLifecycle()
+    val audioList by audioViewModel.audioList.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val playPauseIcon =
-        if (state.value == PlaybackState.IDLE || state.value == PlaybackState.PAUSED || state.value == PlaybackState.COMPLETED) Icons.Filled.PlayCircle else Icons.Filled.PauseCircle
-    val repeatIcon = if (isLooping.value) Icons.Outlined.RepeatOne else Icons.Outlined.Repeat
+        if (state == PlaybackState.IDLE || state == PlaybackState.PAUSED || state == PlaybackState.STOP || state == PlaybackState.COMPLETED ) Icons.Filled.PlayCircle else Icons.Filled.PauseCircle
+    val repeatIcon =
+         if (isListLooping) Icons.Outlined.RepeatOn else if (isLooping) Icons.Outlined.RepeatOne else Icons.Outlined.Repeat
+    val shuffleIcon = if (isShuffling) Icons.Outlined.ShuffleOn else Icons.Outlined.Shuffle
     Row(
         Modifier
             .fillMaxWidth()
             .padding(4.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
-        IconButton(onClick = { /*TODO*/ }, modifier = Modifier.size(70.dp)) {
+        IconButton(onClick = {
+            playAudioViewModel.isShuffling.value = !playAudioViewModel.isShuffling.value
+        }, modifier = Modifier.size(70.dp)) {
             Icon(
-                imageVector = Icons.Outlined.Shuffle,
+                imageVector = shuffleIcon,
                 contentDescription = "Shuffle Button",
                 modifier = Modifier.size(25.dp)
             )
         }
 
-        IconButton(onClick = { /*TODO*/ }, modifier = Modifier.size(50.dp)) {
+        IconButton(onClick = {
+            playAudioViewModel.playPrevious(audioList, currentIndex, context)
+        }, modifier = Modifier.size(50.dp)) {
             Icon(
                 imageVector = Icons.Outlined.SkipPrevious,
                 contentDescription = "Skip Previous",
@@ -303,7 +339,7 @@ fun PlayBackController(
 
         IconButton(
             onClick = {
-                if (state.value == PlaybackState.PLAYING) {
+                if (state == PlaybackState.PLAYING) {
                     playAudioViewModel.pause()
                 } else {
                     playAudioViewModel.resume()
@@ -318,7 +354,9 @@ fun PlayBackController(
             )
         }
 
-        IconButton(onClick = { /*TODO*/ }, modifier = Modifier.size(50.dp)) {
+        IconButton(onClick = {
+            playAudioViewModel.playNext(audioList, currentIndex, context, true)
+        }, modifier = Modifier.size(50.dp)) {
             Icon(
                 imageVector = Icons.Outlined.SkipNext,
                 contentDescription = "Skip Next",
@@ -359,7 +397,7 @@ fun SliderWithTimer(
         Slider(
             value = progress.toFloat(),
             onValueChange = { onValueChange(it.toInt()) },
-            valueRange = 0f..range.toFloat(),
+            valueRange = 0f..if (range > 0) range.toFloat() else 2f,
             thumb = {
                 SliderDefaults.Thumb(
                     interactionSource,
@@ -400,11 +438,17 @@ fun XPlayerTopBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = {
+            playAudioViewModel.isLooping.value = false
+            playAudioViewModel.isListLooping.value = false
             playAudioViewModel.pause()
             playAudioViewModel.playbackProgress.value = 0
+            playAudioViewModel.setPlayBackState(PlaybackState.IDLE)
             navController.popBackStack()
         }) {
-            Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back Button")
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                contentDescription = "Back Button"
+            )
         }
         Spacer(Modifier.weight(1f))
         IconButton(onClick = {

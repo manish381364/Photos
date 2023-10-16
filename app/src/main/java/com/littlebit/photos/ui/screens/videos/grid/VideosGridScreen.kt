@@ -7,7 +7,6 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.rememberSplineBasedDecay
@@ -15,6 +14,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -28,17 +30,18 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.littlebit.photos.ui.screens.home.ScreenTopBar
 import com.littlebit.photos.ui.screens.videos.VideoViewModel
 
 
-@OptIn(ExperimentalMaterial3Api::class)
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun VideosGridScreen(
     videoViewModel: VideoViewModel,
@@ -52,18 +55,28 @@ fun VideosGridScreen(
     val videoGroups by videoViewModel.videoGroups.collectAsStateWithLifecycle()
     val topAppBarScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(
         state = rememberTopAppBarState(),
-        snapAnimationSpec = spring(Spring.StiffnessLow),
+        snapAnimationSpec = spring(stiffness = Spring.StiffnessLow),
         flingAnimationSpec = rememberSplineBasedDecay()
+    )
+    val isRefreshing by videoViewModel.isLoading.collectAsStateWithLifecycle()
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isRefreshing,
+        onRefresh = {
+            videoViewModel.refreshVideos(context)
+            if (videoViewModel.isSelectionInProgress()) videoViewModel.unSelectAllVideos()
+        }
     )
     Scaffold(
         containerColor = Color.Transparent,
-        modifier = Modifier.nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
+        modifier = Modifier
+            .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
         topBar = {
-            VideoScreenTopBar(
-                topAppBarScrollBehavior = topAppBarScrollBehavior,
-                showAlertDialog,
-                videoViewModel
-            )
+            ScreenTopBar(
+                scrollBehavior = topAppBarScrollBehavior,
+                title = "Bit Videos",
+            ) {
+                showAlertDialog.value = true
+            }
         },
     ) { innerPadding ->
         Box(
@@ -75,12 +88,17 @@ fun VideosGridScreen(
                 VideoGridList(
                     videoViewModel = videoViewModel,
                     videoScreenListState,
-                    navHostController
+                    navHostController,
+                    pullRefreshState
                 )
             }
+            PullRefreshIndicator(
+                refreshing = isRefreshing,
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
         }
     }
-
 
 
     val readVideoPermission = rememberLauncherForActivityResult(
@@ -93,8 +111,7 @@ fun VideosGridScreen(
             val appSettingsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
             appSettingsIntent.data = Uri.fromParts("package", context.packageName, null)
             context.startActivity(appSettingsIntent)
-        }
-        else if(videoGroups.isEmpty()) videoViewModel.addVideosGroupedByDate(context)
+        } else if (videoGroups.isEmpty()) videoViewModel.addVideosGroupedByDate(context)
     }
 
 

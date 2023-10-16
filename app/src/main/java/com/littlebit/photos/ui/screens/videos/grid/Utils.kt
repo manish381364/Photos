@@ -4,11 +4,9 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.text.format.Formatter.formatFileSize
-import androidx.annotation.RequiresApi
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,24 +24,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material.pullrefresh.PullRefreshState
+import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,7 +52,6 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-import coil.compose.AsyncImage
 import com.bumptech.glide.integration.compose.CrossFade
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
@@ -66,104 +59,19 @@ import com.littlebit.photos.model.VideoGroup
 import com.littlebit.photos.model.VideoItem
 import com.littlebit.photos.ui.navigation.Screens
 import com.littlebit.photos.ui.screens.home.DateWithMarkButton
-import com.littlebit.photos.ui.screens.home.profile_image
 import com.littlebit.photos.ui.screens.videos.VideoViewModel
-import kotlin.reflect.KProperty
 
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun VideoScreenTopBar(
-    topAppBarScrollBehavior: TopAppBarScrollBehavior,
-    showAlertDialog: MutableState<Boolean>,
-    videoViewModel: VideoViewModel
-) {
-    val isImageLoading = remember {
-        mutableStateOf(false)
-    }
-    val context = LocalContext.current
-    TopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = Color.Transparent,
-            scrolledContainerColor = Color.Transparent
-        ),
-        scrollBehavior = topAppBarScrollBehavior,
-        title = {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "Bit Videos",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-                AsyncImage(
-                    model = profile_image,
-                    contentDescription = "",
-                    modifier = Modifier
-                        .padding(4.dp)
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .align(Alignment.BottomEnd)
-                        .clickable {
-                            showAlertDialog.value = true
-                            videoViewModel.refreshVideos(context)
-                        },
-                    contentScale = ContentScale.Crop,
-                    onLoading = {
-                        // Display a circular, indeterminate progress indicator
-                        isImageLoading.value = true
-                    },
-                    onError = {
-                        isImageLoading.value = false
-                    },
-                    onSuccess = {
-                        isImageLoading.value = false
-                    }
-                )
-                AnimatedVisibility(
-                    visible = isImageLoading.value,
-                    modifier = Modifier.align(Alignment.BottomEnd)
-                ) {
-                    CircularProgressIndicator(
-                        Modifier
-                            .size(20.dp),
-                        strokeWidth = 2.dp
-                    )
-                }
-            }
-
-        }
-    )
-}
-
-private operator fun Any.getValue(nothing: Nothing?, property: KProperty<*>): Any {
-    TODO("Not yet implemented")
-}
-
-
-
-@RequiresApi(Build.VERSION_CODES.Q)
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun VideoGridList(
     videoViewModel: VideoViewModel,
     scrollState: LazyListState,
-    navHostController: NavHostController
+    navHostController: NavHostController,
+    pullRefreshState: PullRefreshState
 ) {
     val videoGroups by videoViewModel.videoGroups.collectAsStateWithLifecycle()
     val isLoading by videoViewModel.isLoading.collectAsStateWithLifecycle()
-
-    LazyColumn(state = scrollState) {
-
-            item {
-                Spacer(modifier = Modifier.height(100.dp))
-            }
-            items(videoGroups.size){listIndex ->
-                val videoGroup = videoGroups[listIndex]
-                VideoGroupSection(videoGroup, videoViewModel, listIndex, navHostController)
-            }
-
-    }
 
     if (videoGroups.isEmpty()) {
         Box(
@@ -191,8 +99,7 @@ fun VideoGridList(
                         fontWeight = FontWeight.Bold
                     )
                 }
-            }
-            else {
+            } else {
                 CircularProgressIndicator(
                     Modifier
                         .align(Alignment.Center),
@@ -200,10 +107,26 @@ fun VideoGridList(
                 )
             }
         }
+        return
+    }
+
+    LazyColumn(state = scrollState, modifier = Modifier
+        .fillMaxSize()
+        .pullRefresh(pullRefreshState)) {
+        item {
+            Spacer(modifier = Modifier.height(100.dp))
+        }
+        items(videoGroups.size) { listIndex ->
+            val videoGroup = videoGroups[listIndex]
+            VideoGroupSection(videoGroup, videoViewModel, listIndex, navHostController)
+        }
+        item {
+            Spacer(modifier = Modifier.height(100.dp))
+        }
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.O)
+
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
 private fun VideoGroupSection(
@@ -212,20 +135,24 @@ private fun VideoGroupSection(
     listIndex: Int,
     navHostController: NavHostController
 ) {
-    DateWithMarkButton(date = videoGroup.date) {
-        videoViewModel.selectAllVideos(listIndex)
-    }
-    Spacer(modifier = Modifier.height(6.dp))
-    FlowRow(Modifier.fillMaxWidth()) {
-        videoGroup.videos.forEachIndexed { videoIndex, video ->
-            VideoGridItem(
-                video,
-                videoViewModel,
-                listIndex = listIndex,
-                videoIndex = videoIndex
-            ) {
-                navHostController.navigate(Screens.VideoScreen.route + "/$videoIndex/$listIndex"){
-                    launchSingleTop = true
+    Column(Modifier.fillMaxWidth()) {
+        DateWithMarkButton(date = videoGroup.date) {
+            videoViewModel.selectAllVideos(videoGroup, listIndex)
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        FlowRow(Modifier.fillMaxWidth()) {
+            val size = videoGroup.videos.size
+            for(videoIndex in 0 until size) {
+                val video = videoGroup.videos[videoIndex]
+                VideoGridItem(
+                    video,
+                    videoViewModel,
+                    listIndex = listIndex,
+                    videoIndex = videoIndex
+                ) {
+                    navHostController.navigate(Screens.VideoScreen.route + "/$videoIndex/$listIndex") {
+                        launchSingleTop = true
+                    }
                 }
             }
         }
@@ -245,7 +172,8 @@ fun VideoGridItem(
     val context = LocalContext.current
     val totalSelectedVideos by videoViewModel.selectedVideos.collectAsStateWithLifecycle()
     val vibrator = ContextCompat.getSystemService(context, Vibrator::class.java)
-    val size by animateDpAsState(targetValue = if (video.isSelected) 121.dp else 141.dp, label = "")
+    val size by animateDpAsState(targetValue = if (video.isSelected) 121.dp else 141.dp, label = "", animationSpec = tween(90, 20))
+    val animateCornerShape by animateDpAsState(targetValue = if (video.isSelected) 20.dp else 0.dp, label = "", animationSpec = tween(90, 20))
     if (video.uri != null) {
         Box(
             contentAlignment = Alignment.Center,
@@ -254,11 +182,12 @@ fun VideoGridItem(
                 .background(MaterialTheme.colorScheme.surfaceBright)
         ) {
             GlideImage(
-                model = video.thumbnail,
+                model = video.uri,
                 contentDescription = "Thumbnail",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(size)
+                    .clip(RoundedCornerShape(animateCornerShape))
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onLongPress = {
@@ -302,7 +231,7 @@ fun VideoGridItem(
                 Text(
                     text = video.displayName,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = Color.White,
                     overflow = TextOverflow.Ellipsis,
                     maxLines = 1,
                     modifier = Modifier
@@ -311,6 +240,7 @@ fun VideoGridItem(
                 Icon(
                     imageVector = Icons.Filled.PlayCircle,
                     contentDescription = "Play",
+                    tint = Color.White,
                 )
             }
 
@@ -320,6 +250,7 @@ fun VideoGridItem(
                     .align(Alignment.BottomEnd)
                     .padding(8.dp),
                 style = MaterialTheme.typography.bodyMedium,
+                color = Color.White
             )
 
 

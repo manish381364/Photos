@@ -5,6 +5,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.text.format.Formatter.formatFileSize
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -116,7 +117,7 @@ fun FileInfo(currentFile: MutableState<AudioItem>, removeFileInfo: () -> Unit = 
                         .padding(22.dp)
                 )
                 Text(
-                    text = currentFile.value.name,
+                    text = currentFile.value.displayName,
                     style = MaterialTheme.typography.titleSmall,
                     overflow = TextOverflow.Ellipsis,
                     maxLines = 1
@@ -190,7 +191,7 @@ fun AudioItem(
     var showMore by remember {
         mutableStateOf(false)
     }
-    val backGround by animateColorAsState(targetValue = getAudioItemColor(audioFile), label = "")
+    val backGround by animateColorAsState(targetValue = getAudioItemColor(audioFile), label = "", animationSpec = spring())
 
     val vibrator = ContextCompat.getSystemService(context, Vibrator::class.java)
 
@@ -275,7 +276,7 @@ fun AudioItem(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = audioFile.name,
+                    text = audioFile.displayName,
                     style = MaterialTheme.typography.titleSmall,
                     overflow = TextOverflow.Ellipsis,
                     maxLines = 1,

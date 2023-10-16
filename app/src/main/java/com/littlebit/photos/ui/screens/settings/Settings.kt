@@ -1,5 +1,6 @@
 package com.littlebit.photos.ui.screens.settings
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,17 +19,20 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 
 @Composable
 fun SettingsScreen(
     navHostController: NavHostController,
-    isDarkTheme: MutableState<Boolean>
+    settingsViewModel: SettingsViewModel
 ) {
+    val currentTheme by settingsViewModel.isDarkTheme.collectAsStateWithLifecycle()
+    val isDarkTheme: Boolean = currentTheme?: isSystemInDarkTheme()
     Scaffold(
         topBar = {
             SettingsScreenTopBar(navHostController)
@@ -45,8 +49,8 @@ fun SettingsScreen(
             ) {
                 ThemeSetting(
                     title = "Dark Theme",
-                    isDarkTheme
-                )
+                    isDarkTheme = isDarkTheme,
+                ) { settingsViewModel.setThemePreference(it) }
             }
         }
     }
@@ -54,7 +58,7 @@ fun SettingsScreen(
 
 
 @Composable
-fun ThemeSetting(title: String, isDarkTheme: MutableState<Boolean>) {
+fun ThemeSetting(title: String, isDarkTheme: Boolean, onThemeChange: (isDarkTheme: Boolean) -> Unit) {
     Row(
         modifier = Modifier
             .padding(16.dp)
@@ -63,7 +67,9 @@ fun ThemeSetting(title: String, isDarkTheme: MutableState<Boolean>) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(text = title, style = MaterialTheme.typography.titleSmall)
-        Switch(checked = isDarkTheme.value, onCheckedChange = { isDarkTheme.value = it })
+        Switch(checked = isDarkTheme, onCheckedChange = {
+            onThemeChange(it)
+        })
     }
 }
 

@@ -1,6 +1,9 @@
 package com.littlebit.photos.ui.screens.search
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -18,6 +21,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Audiotrack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,15 +37,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
+import com.littlebit.photos.model.SearchItem
 import com.littlebit.photos.ui.navigation.Screens
+import com.littlebit.photos.ui.screens.audio.AudioViewModel
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
 import com.littlebit.photos.ui.screens.videos.VideoViewModel
 
@@ -51,14 +62,18 @@ fun SearchScreen(
     searchViewModel: SearchViewModel = viewModel(),
     photosViewModel: PhotosViewModel,
     videoViewModel: VideoViewModel,
+    audioViewModel: AudioViewModel,
     currentScreen: MutableState<String>
 ) {
     val searchItems = rememberSaveable {
-        mutableStateOf(listOf<SearchViewModel.SearchItem>())
+        mutableStateOf(listOf<SearchItem>())
     }
     val isInputFieldEmpty = remember {
         mutableStateOf(true)
     }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
     Surface {
         Scaffold(
             topBar = {
@@ -66,15 +81,28 @@ fun SearchScreen(
                     searchViewModel,
                     photosViewModel,
                     videoViewModel,
+                    audioViewModel,
                     searchItems,
                     currentScreen,
-                    isInputFieldEmpty
+                    isInputFieldEmpty,
+                    keyboardController,
+                    focusRequester
                 )
             }
         ) {
             Box(modifier = Modifier.padding(it)) {
-                SearchContent(searchItems, navHostController, isInputFieldEmpty)
+                SearchContent(searchItems, navHostController, isInputFieldEmpty, keyboardController, focusRequester)
             }
+        }
+    }
+
+    BackHandler {
+        if(!focusManager.moveFocus(FocusDirection.Previous)) {
+            focusRequester.requestFocus()
+        }
+        else{
+            keyboardController?.hide()
+            currentScreen.value = Screens.HomeScreen.route
         }
     }
 }
@@ -85,11 +113,15 @@ fun SearchTopBar(
     searchViewModel: SearchViewModel,
     photosViewModel: PhotosViewModel,
     videoViewModel: VideoViewModel,
-    searchItems: MutableState<List<SearchViewModel.SearchItem>>,
+    audioViewModel: AudioViewModel,
+    searchItems: MutableState<List<SearchItem>>,
     currentScreen: MutableState<String>,
-    isInputFieldEmpty: MutableState<Boolean>
+    isInputFieldEmpty: MutableState<Boolean>,
+    keyboardController: SoftwareKeyboardController?,
+    focusRequester: FocusRequester
 ) {
-    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+
+    val interactionSource = remember { MutableInteractionSource() }
     LaunchedEffect(key1 = currentScreen.value == Screens.SearchScreen.route) {
         focusRequester.requestFocus()
     }
@@ -97,7 +129,7 @@ fun SearchTopBar(
         mutableStateOf("")
     }
 
-    val keyboardController = LocalSoftwareKeyboardController.current
+
     Row(
         Modifier
             .fillMaxWidth()
@@ -113,6 +145,7 @@ fun SearchTopBar(
                     searchItems.value = searchViewModel.getSearchItems(
                         photosViewModel,
                         videoViewModel,
+                        audioViewModel,
                         inputText.value
                     )
                 } else {
@@ -136,9 +169,11 @@ fun SearchTopBar(
             keyboardActions = KeyboardActions(
                 onSearch = {
                     keyboardController?.hide()
+                    focusRequester.freeFocus()
                     searchItems.value = searchViewModel.getSearchItems(
                         photosViewModel,
                         videoViewModel,
+                        audioViewModel,
                         inputText.value
                     )
                 }
@@ -162,22 +197,28 @@ fun SearchTopBar(
                         onClick = {
                             inputText.value = ""
                             searchItems.value = listOf()
+                            isInputFieldEmpty.value = true
                         },
                     ) {
                         Icon(imageVector = Icons.Filled.Close, contentDescription = "Close Button")
                     }
                 }
             },
-            shape = MaterialTheme.shapes.extraLarge
+            shape = MaterialTheme.shapes.extraLarge,
+            interactionSource = interactionSource,
         )
     }
 }
 
+
+
 @Composable
 fun SearchContent(
-    searchItems: MutableState<List<SearchViewModel.SearchItem>>,
+    searchItems: MutableState<List<SearchItem>>,
     navHostController: NavHostController,
-    isInputFieldEmpty: MutableState<Boolean>
+    isInputFieldEmpty: MutableState<Boolean>,
+    keyboardController: SoftwareKeyboardController?,
+    focusRequester: FocusRequester
 ) {
     if (searchItems.value.isEmpty() && !isInputFieldEmpty.value) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -186,15 +227,27 @@ fun SearchContent(
     }
 
     LazyColumn {
-        items(searchItems.value) {
-            SearchItemRow(it) {
-                if (it.type == "image") {
-                    navHostController.navigate(Screens.ImageDetailsScreen.route + "/${it.index}/${it.listIndex}") {
-                        launchSingleTop = true
+        items(searchItems.value) { searchItem ->
+            SearchItemRow(searchItem) {
+                keyboardController?.hide()
+                focusRequester.freeFocus()
+                when (searchItem.type) {
+                    "image" -> {
+                        navHostController.navigate(Screens.ImageDetailsScreen.route + "/${searchItem.index}/${searchItem.listIndex}") {
+                            launchSingleTop = true
+                        }
                     }
-                } else {
-                    navHostController.navigate(Screens.VideoScreen.route + "/${it.index}/${it.listIndex}") {
-                        launchSingleTop = true
+
+                    "video" -> {
+                        navHostController.navigate(Screens.VideoScreen.route + "/${searchItem.index}/${searchItem.listIndex}") {
+                            launchSingleTop = true
+                        }
+                    }
+
+                    else -> {
+                        navHostController.navigate(Screens.PlayAudioScreen.route + "/${searchItem.index}") {
+                            launchSingleTop = true
+                        }
                     }
                 }
             }
@@ -203,7 +256,7 @@ fun SearchContent(
 }
 
 @Composable
-fun SearchItemRow(it: SearchViewModel.SearchItem, onClick: () -> Unit = {}) {
+fun SearchItemRow(searchItem: SearchItem, onClick: () -> Unit = {}) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -211,7 +264,7 @@ fun SearchItemRow(it: SearchViewModel.SearchItem, onClick: () -> Unit = {}) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            it.title,
+            searchItem.title,
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
@@ -220,21 +273,37 @@ fun SearchItemRow(it: SearchViewModel.SearchItem, onClick: () -> Unit = {}) {
             overflow = TextOverflow.Ellipsis,
             maxLines = 3
         )
-        if (it.type == "image") {
-            AsyncImage(
-                model = it.url,
-                contentDescription = it.title,
-                modifier = Modifier
-                    .padding(16.dp)
-                    .size(98.dp)
-            )
-        } else {
-            AsyncImage(
-                model = it.videoItem?.thumbnail,
-                contentDescription = it.title,
-                modifier = Modifier
-                    .size(98.dp)
-            )
+        when (searchItem.type) {
+            "image" -> {
+                AsyncImage(
+                    model = searchItem.url,
+                    contentDescription = searchItem.type,
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .size(98.dp)
+                )
+            }
+            "video" -> {
+                AsyncImage(
+                    model = searchItem.videoItem?.thumbnail,
+                    contentDescription = searchItem.type,
+                    modifier = Modifier
+                        .size(98.dp)
+                )
+            }
+            else -> {
+                if(searchItem.audioItem?.thumbNail != null) {
+                    Image(
+                        bitmap = searchItem.audioItem.thumbNail,
+                        contentDescription = searchItem.type,
+                        modifier = Modifier.size(98.dp)
+                    )
+                }
+                else{
+                    Icon(imageVector = Icons.Outlined.Audiotrack, contentDescription = "Audio Track", tint = Color.Magenta)
+                }
+
+            }
         }
     }
 }

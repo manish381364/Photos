@@ -3,6 +3,7 @@ package com.littlebit.photos.model.repository
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
@@ -23,11 +24,13 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
+
 class MediaRepository {
     private fun getImageDateAdded(contentResolver: ContentResolver, imageUri: Uri): Long {
-        val projection = arrayOf(MediaStore.Images.Media.DATE_ADDED)
+        val projection = arrayOf(MediaStore.Images.Media.DATE_MODIFIED)
         contentResolver.query(imageUri, projection, null, null, null)?.use { cursor ->
-            val dateAddedColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
+            val dateAddedColumn =
+                cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
             if (cursor.moveToFirst()) {
                 return cursor.getLong(dateAddedColumn)
             }
@@ -46,10 +49,10 @@ class MediaRepository {
         val projection = arrayOf(
             MediaStore.Images.Media._ID,
             MediaStore.Images.Media.DISPLAY_NAME,
-            MediaStore.Images.Media.DATE_ADDED,
+            MediaStore.Images.Media.DATE_MODIFIED,
             MediaStore.Images.Media.SIZE
         )
-        val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
+        val sortOrder = "${MediaStore.Images.Media.DATE_MODIFIED} DESC"
         val queryUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
 
         contentResolver.query(queryUri, projection, null, null, sortOrder)?.use { cursor ->
@@ -57,7 +60,8 @@ class MediaRepository {
             val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)
             val displayNameColumn =
                 cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
-            val dateAddedColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
+            val dateAddedColumn =
+                cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 val contentUri = Uri.withAppendedPath(queryUri, id.toString())
@@ -92,10 +96,10 @@ class MediaRepository {
         val projection = arrayOf(
             MediaStore.Images.Media._ID,
             MediaStore.Images.Media.DISPLAY_NAME,
-            MediaStore.Images.Media.DATE_ADDED,
+            MediaStore.Images.Media.DATE_MODIFIED,
             MediaStore.Images.Media.SIZE
         )
-        val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
+        val sortOrder = "${MediaStore.Images.Media.DATE_MODIFIED} DESC"
         val queryUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
 
         contentResolver.query(queryUri, projection, null, null, sortOrder)?.use { cursor ->
@@ -103,7 +107,8 @@ class MediaRepository {
             val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)
             val displayNameColumn =
                 cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
-            val dateAddedColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
+            val dateAddedColumn =
+                cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
 
 
             while (cursor.moveToNext()) {
@@ -144,11 +149,6 @@ class MediaRepository {
             }
         }
     }
-
-
-
-
-
 
 
     //Audio Repository
@@ -235,9 +235,6 @@ class MediaRepository {
     }
 
 
-
-
-
     // Video Repository
 
     private fun formatDate(dateAdded: Long): String {
@@ -246,7 +243,10 @@ class MediaRepository {
     }
 
 
-    fun loadVideos(context: Context, isLoading: MutableStateFlow<Boolean>): Pair<MutableList<VideoItem>, MutableList<VideoGroup>> {
+    fun loadVideos(
+        context: Context,
+        isLoading: MutableStateFlow<Boolean>
+    ): Pair<MutableList<VideoItem>, MutableList<VideoGroup>> {
         isLoading.value = true
         val videos = mutableListOf<VideoItem>()
         var videoGroup = mutableListOf<VideoGroup>()
@@ -254,7 +254,8 @@ class MediaRepository {
             MediaStore.Video.Media._ID,
             MediaStore.Video.Media.DISPLAY_NAME,
             MediaStore.Video.Media.DATE_ADDED,
-            MediaStore.Video.Media.SIZE
+            MediaStore.Video.Media.SIZE,
+            MediaStore.Video.Media.DURATION
         )
 
         val sortOrder = "${MediaStore.Video.Media.DATE_ADDED} DESC"
@@ -275,6 +276,7 @@ class MediaRepository {
             val dateAddedColumn =
                 cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_ADDED)
             val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
+            val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
 
             val videoList = mutableListOf<VideoItem>()
             while (cursor.moveToNext()) {
@@ -285,15 +287,38 @@ class MediaRepository {
                     MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
                     id
                 )
+                val duration = cursor.getLong(durationColumn)
                 val size = cursor.getLong(sizeColumn)
-                val thumbnail = try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        contentResolver.loadThumbnail(contentUri, Size(640, 480), null)
-                    } else {
+                val thumbnail = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    // For Android 10 (API level 29) and above, you can use loadThumbnail
+                    try {
+                        contentResolver.loadThumbnail(
+                            contentUri,
+                            Size(640, 480),
+                            null
+                        )
+                    } catch (e: Exception) {
                         null
                     }
-                } catch (e: Exception) {
-                    null
+                } else {
+                    // For lower Android versions, use MediaStore.Video.Thumbnails
+                    val retriever = MediaMetadataRetriever()
+                    try {
+                        retriever.setDataSource(context, contentUri)
+                        val frame = retriever.frameAtTime
+                        if (frame != null) {
+                            // Resize the bitmap to a smaller dimension to avoid OutOfMemoryError
+                            val targetWidth = 300
+                            val targetHeight = 200
+                            Bitmap.createScaledBitmap(frame, targetWidth, targetHeight, true)
+                        } else {
+                            null
+                        }
+                    } catch (e: Exception) {
+                        null
+                    } finally {
+                        retriever.release()
+                    }
                 }
                 videoList.add(
                     VideoItem(
@@ -302,7 +327,8 @@ class MediaRepository {
                         dateAdded,
                         contentUri,
                         thumbnail,
-                        size
+                        size,
+                        duration = duration
                     )
                 )
             }
@@ -320,20 +346,20 @@ class MediaRepository {
     }
 
 
-
-
     fun addVideosGroupedByDate(
-        contentResolver: ContentResolver,
         videoGroups: MutableStateFlow<MutableList<VideoGroup>>,
         videos: MutableStateFlow<MutableList<VideoItem>>,
-        isLoading: MutableStateFlow<Boolean>
+        isLoading: MutableStateFlow<Boolean>,
+        context: Context
     ) {
+        val contentResolver = context.contentResolver
         isLoading.value = true
         val projection = arrayOf(
             MediaStore.Video.Media._ID,
             MediaStore.Video.Media.DISPLAY_NAME,
             MediaStore.Video.Media.DATE_ADDED,
-            MediaStore.Video.Media.SIZE
+            MediaStore.Video.Media.SIZE,
+            MediaStore.Video.Media.DURATION
         )
         val sortOrder = "${MediaStore.Video.Media.DATE_ADDED} DESC"
         val queryUri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI
@@ -344,6 +370,7 @@ class MediaRepository {
             val displayNameColumn =
                 cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME)
             val dateAddedColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_ADDED)
+            val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
 
 
             while (cursor.moveToNext()) {
@@ -352,17 +379,40 @@ class MediaRepository {
                 val displayName = cursor.getString(displayNameColumn)
                 val dateAdded = cursor.getLong(dateAddedColumn)
                 val size = cursor.getLong(sizeColumn)
-                val thumbnail = try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        contentResolver.loadThumbnail(contentUri, Size(640, 480), null)
-                    } else {
+                val duration = cursor.getLong(durationColumn)
+                val thumbnail = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    // For Android 10 (API level 29) and above, you can use loadThumbnail
+                    try {
+                        contentResolver.loadThumbnail(
+                            contentUri,
+                            Size(640, 480),
+                            null
+                        )
+                    } catch (e: Exception) {
                         null
                     }
-                } catch (e: Exception) {
-                    null
+                } else {
+                    // For lower Android versions, use MediaStore.Video.Thumbnails
+                    val retriever = MediaMetadataRetriever()
+                    try {
+                        retriever.setDataSource(context, contentUri)
+                        val frame = retriever.frameAtTime
+                        if (frame != null) {
+                            // Resize the bitmap to a smaller dimension to avoid OutOfMemoryError
+                            val targetWidth = 300
+                            val targetHeight = 200
+                            Bitmap.createScaledBitmap(frame, targetWidth, targetHeight, true)
+                        } else {
+                            null
+                        }
+                    } catch (e: Exception) {
+                        null
+                    } finally {
+                        retriever.release()
+                    }
                 }
 
-                val videoItem = VideoItem(id, displayName, dateAdded, contentUri, thumbnail, size)
+                val videoItem = VideoItem(id, displayName, dateAdded, contentUri, thumbnail, size, duration = duration)
 
                 videos.value.add(videoItem)
 
