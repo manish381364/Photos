@@ -38,7 +38,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-import com.littlebit.photos.ui.screens.home.ImageGridList
 import com.littlebit.photos.ui.screens.home.ScreenTopBar
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
 

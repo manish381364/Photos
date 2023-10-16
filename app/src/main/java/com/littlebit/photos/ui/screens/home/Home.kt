@@ -2,8 +2,6 @@ package com.littlebit.photos.ui.screens.home
 
 import android.app.Activity
 import android.content.Context
-import android.content.Intent
-import android.os.Build
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResult
@@ -480,53 +478,6 @@ private fun trashResult(
         } else {
             photosViewModel.unSelectAllImages()
         }
-    }
-}
-
-fun onClickDeleteButton(
-    audioSelectionInProgress: Boolean,
-    audioViewModel: AudioViewModel,
-    videoSelectionInProgress: Boolean,
-    videoViewModel: VideoViewModel,
-    photosViewModel: PhotosViewModel,
-    context: Context,
-    trashLauncher: ManagedActivityResultLauncher<IntentSenderRequest, ActivityResult>,
-    confirmDelete: MutableState<Boolean>
-) {
-    if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && Build.VERSION.SDK_INT < Build.VERSION_CODES.R)){
-        confirmDelete.value = true
-    } else {
-        if (audioSelectionInProgress) {
-            audioViewModel.moveToTrashSelectedAudios(context, trashLauncher)
-        } else if (videoSelectionInProgress) {
-            videoViewModel.moveToTrashSelectedVideos(context, trashLauncher)
-        } else {
-            photosViewModel.moveToTrashSelectedImages(context, trashLauncher)
-        }
-    }
-}
-
-fun onClickShareButton(
-    audioSelectionInProgress: Boolean,
-    audioViewModel: AudioViewModel,
-    videoSelectionInProgress: Boolean,
-    videoViewModel: VideoViewModel,
-    photosViewModel: PhotosViewModel,
-    context: Context,
-    onClickUnSelectAll: () -> Unit
-) {
-    if (audioSelectionInProgress) {
-        val shareIntent = audioViewModel.shareSelectedAudios()
-        onClickUnSelectAll()
-        context.startActivity(Intent.createChooser(shareIntent, "Share Audios"))
-    } else if (videoSelectionInProgress) {
-        val shareIntent = videoViewModel.shareSelectedVideos()
-        onClickUnSelectAll()
-        context.startActivity(Intent.createChooser(shareIntent, "Share Videos"))
-    } else {
-        val shareIntent = photosViewModel.shareSelectedImages()
-        onClickUnSelectAll()
-        context.startActivity(Intent.createChooser(shareIntent, "Share Photos"))
     }
 }
 
