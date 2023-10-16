@@ -31,10 +31,8 @@ experience.
 
 ## Screenshots
 
-<img src="screenshots/photos_grid_screen.png" alt="Photos_Grid_Screen" width="200">
-<img src="screenshots/videos_grid_screen.png" alt="Videos_Grid_Screen" width="200">
-<img src="screenshots/search_screen.png" alt="Search_Screen" width="200">
-<img src="screenshots/audio_list_screen.png" alt="Audio_List_Screen" width="200">
+<img src="screenshots/photos_grid_screen.png" alt="Photos_Grid_Screen" width="200"> <img src="screenshots/videos_grid_screen.png" alt="Videos_Grid_Screen" width="200">
+<img src="screenshots/search_screen.png" alt="Search_Screen" width="200"> <img src="screenshots/audio_list_screen.png" alt="Audio_List_Screen" width="200">
 
 ## Code Sample - HomeScreen
 
