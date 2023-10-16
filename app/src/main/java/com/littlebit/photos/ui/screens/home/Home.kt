@@ -52,6 +52,7 @@ import com.littlebit.photos.ui.navigation.scaleIntoContainer
 import com.littlebit.photos.ui.navigation.scaleOutOfContainer
 import com.littlebit.photos.ui.screens.audio.AudioListScreen
 import com.littlebit.photos.ui.screens.audio.AudioViewModel
+import com.littlebit.photos.ui.screens.audio.player.XAudioViewModel
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
 import com.littlebit.photos.ui.screens.images.details.ConfirmDeleteSelectedDialog
 import com.littlebit.photos.ui.screens.images.grid.ImageGridScreen
@@ -66,6 +67,7 @@ fun HomeScreen(
     photosViewModel: PhotosViewModel,
     videoViewModel: VideoViewModel,
     audioViewModel: AudioViewModel,
+    xAudioViewModel: XAudioViewModel
 ) {
     val context = LocalContext.current
     val currentScreen = rememberSaveable { mutableStateOf(Screens.HomeScreen.route) }
@@ -107,6 +109,7 @@ fun HomeScreen(
         showAlertDialog,
         videoViewModel,
         audioViewModel,
+        xAudioViewModel,
         audioScreenListState,
         videoScreenListState,
         audioSelectionInProgress,
@@ -119,7 +122,7 @@ fun HomeScreen(
         memorySize,
         context,
         trashLauncher,
-        confirmDelete
+        confirmDelete,
     )
 }
 
@@ -133,6 +136,7 @@ private fun HomeScreenContent(
     showAlertDialog: MutableState<Boolean>,
     videoViewModel: VideoViewModel,
     audioViewModel: AudioViewModel,
+    xAudioViewModel: XAudioViewModel,
     audioScreenListState: LazyListState,
     videoScreenListState: LazyListState,
     audioSelectionInProgress: Boolean,
@@ -145,13 +149,13 @@ private fun HomeScreenContent(
     memorySize: String,
     context: Context,
     trashLauncher: ManagedActivityResultLauncher<IntentSenderRequest, ActivityResult>,
-    confirmDelete: MutableState<Boolean>
+    confirmDelete: MutableState<Boolean>,
 ) {
     Box(
         Modifier
             .fillMaxSize()
     ) {
-        Screen(
+        Screens(
             currentScreen,
             navHostController,
             photosViewModel,
@@ -160,8 +164,9 @@ private fun HomeScreenContent(
             showAlertDialog,
             videoViewModel,
             audioViewModel,
+            xAudioViewModel,
             audioScreenListState,
-            videoScreenListState
+            videoScreenListState,
         )
         BottomComponents(
             audioSelectionInProgress,
@@ -358,7 +363,7 @@ private fun BottomComponents(
 }
 
 @Composable
-private fun Screen(
+private fun Screens(
     currentScreen: MutableState<String>,
     navHostController: NavHostController,
     photosViewModel: PhotosViewModel,
@@ -367,6 +372,7 @@ private fun Screen(
     showAlertDialog: MutableState<Boolean>,
     videoViewModel: VideoViewModel,
     audioViewModel: AudioViewModel,
+    xAudioViewModel: XAudioViewModel,
     audioScreenListState: LazyListState,
     videoScreenListState: LazyListState
 ) {
@@ -404,8 +410,9 @@ private fun Screen(
         AudioListScreen(
             navHostController,
             audioViewModel,
+            xAudioViewModel,
             audioScreenListState,
-            showAlertDialog
+            showAlertDialog,
         )
     }
     AnimatedVisibility(

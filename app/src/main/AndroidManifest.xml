@@ -29,6 +29,7 @@
         android:theme="@style/Theme.Photos"
         android:enableOnBackInvokedCallback="true"
         tools:targetApi="tiramisu">
+        <service android:name=".ui.screens.audio.player.PlaybackService"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -39,6 +40,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service android:name=".model.player.service.AudioService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback"
+            android:permission="@string/audio_service"
+            tools:ignore="ForegroundServicePermission">
+            <intent-filter>
+                <action
+                   android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
 
 
     </application>

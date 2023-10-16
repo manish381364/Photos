@@ -25,7 +25,9 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 
-class MediaRepository {
+class MediaRepository(
+     private val applicationContext: Context
+) {
     private fun getImageDateAdded(contentResolver: ContentResolver, imageUri: Uri): Long {
         val projection = arrayOf(MediaStore.Images.Media.DATE_MODIFIED)
         contentResolver.query(imageUri, projection, null, null, null)?.use { cursor ->
@@ -40,7 +42,7 @@ class MediaRepository {
     }
 
     fun getImagesGroupedByDate(
-        contentResolver: ContentResolver,
+        contentResolver: ContentResolver = applicationContext.contentResolver,
         isLoading: MutableStateFlow<Boolean>
     ): Pair<MutableList<ImageGroup>, MutableList<PhotoItem>> {
         isLoading.value = true
@@ -87,7 +89,7 @@ class MediaRepository {
 
 
     fun addImagesGroupedByDate(
-        contentResolver: ContentResolver,
+        contentResolver: ContentResolver = applicationContext.contentResolver,
         photoGroups: MutableStateFlow<MutableList<ImageGroup>>,
         photos: MutableStateFlow<MutableList<PhotoItem>>,
         isLoading: MutableStateFlow<Boolean>
@@ -148,12 +150,13 @@ class MediaRepository {
                 }
             }
         }
+        isLoading.value = false
     }
 
 
     //Audio Repository
 
-    fun getAudioList(context: Context): MutableList<AudioItem> {
+    fun getAudioList(context: Context = applicationContext): MutableList<AudioItem> {
         val list = mutableListOf<AudioItem>()
         val contentResolver = context.contentResolver
         val projection = arrayOf(
@@ -164,7 +167,7 @@ class MediaRepository {
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.IS_MUSIC,
             MediaStore.Audio.Media.DATA,
-            MediaStore.Audio.Media.ALBUM_ID
+            MediaStore.Audio.Media.ALBUM_ID,
         )
         val sortOrder = "${MediaStore.Audio.Media.DATE_ADDED} DESC"
         val queryUri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
@@ -207,11 +210,12 @@ class MediaRepository {
                     displayName,
                     path,
                     formatDuration(duration.toLong()),
+                    duration.toLong(),
                     size,
-                    isMusic == 1,
-                    uri,
-                    thumbnailBitmap,
-                    formatDate(dateAdded)
+                    isMusic = isMusic == 1,
+                    uri = uri,
+                    thumbNail = thumbnailBitmap,
+                    dateAdded = formatDate(dateAdded),
                 )
                 list.add(audio)
             }
@@ -244,7 +248,7 @@ class MediaRepository {
 
 
     fun loadVideos(
-        context: Context,
+        context: Context = applicationContext,
         isLoading: MutableStateFlow<Boolean>
     ): Pair<MutableList<VideoItem>, MutableList<VideoGroup>> {
         isLoading.value = true
@@ -350,7 +354,7 @@ class MediaRepository {
         videoGroups: MutableStateFlow<MutableList<VideoGroup>>,
         videos: MutableStateFlow<MutableList<VideoItem>>,
         isLoading: MutableStateFlow<Boolean>,
-        context: Context
+        context: Context = applicationContext
     ) {
         val contentResolver = context.contentResolver
         isLoading.value = true
@@ -440,5 +444,6 @@ class MediaRepository {
                 }
             }
         }
+        isLoading.value = false
     }
 }

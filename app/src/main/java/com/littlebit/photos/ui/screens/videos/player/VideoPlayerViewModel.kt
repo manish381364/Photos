@@ -8,11 +8,11 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
-import com.littlebit.photos.ui.screens.audio.player.PlaybackState
 import kotlinx.coroutines.flow.MutableStateFlow
 
 
-class VideoPlayerViewModel : ViewModel() {
+class VideoPlayerViewModel : ViewModel()
+{
     private val _playbackState: MutableStateFlow<PlaybackState> =
         MutableStateFlow(PlaybackState.IDLE)
     private val _playbackPosition: MutableStateFlow<Long> = MutableStateFlow(0L)
@@ -22,7 +22,6 @@ class VideoPlayerViewModel : ViewModel() {
     fun initialisePlayer(context: Context){
         player.value = ExoPlayer.Builder(context).build()
     }
-
 
     fun releasePlayer() {
         try {
@@ -103,6 +102,15 @@ class VideoPlayerViewModel : ViewModel() {
         }
     }
 }
+
+
+sealed class PlaybackState {
+    data object IDLE : PlaybackState()
+}
+
+
+
+
 
 
 

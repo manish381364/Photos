@@ -216,6 +216,7 @@ fun ImageGridList(
     ) {
         item {
             Spacer(modifier = Modifier.height(100.dp))
+            EmptyMessage(imageGroups, isLoading)
         }
         items(imageGroups.size) { index ->
             val imageGroup = imageGroups[index]
@@ -234,7 +235,13 @@ fun ImageGridList(
             Spacer(modifier = Modifier.height(100.dp))
         }
     }
+}
 
+@Composable
+private fun EmptyMessage(
+    imageGroups: MutableList<ImageGroup>,
+    isLoading: Boolean
+) {
     if (imageGroups.isEmpty()) {
         Box(
             Modifier

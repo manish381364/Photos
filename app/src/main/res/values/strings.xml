@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">Bit Media</string>
+    <string name="now_playing">Now Playing</string>
+    <string name="shuffle_button">shuffle button</string>
+    <string name="play_pause_button">play pause button</string>
+    <string name="repeat_button">repeat button</string>
+    <string name="audio_service"> Audio Service </string>
 </resources>

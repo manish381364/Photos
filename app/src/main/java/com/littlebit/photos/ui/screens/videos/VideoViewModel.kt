@@ -53,7 +53,6 @@ class VideoViewModel @Inject constructor(
                     videoGroups,
                     videos,
                     isLoading,
-                    context
                 )
             }
         }
@@ -63,7 +62,7 @@ class VideoViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.Default) {
             try {
                 withContext(loadVideoDispatcher) {
-                    val result = repository.loadVideos(context, isLoading)
+                    val result = repository.loadVideos(isLoading = isLoading)
                     videos.value = result.first
                     videoGroups.value = result.second
                 }

@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.Composable
+import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -16,26 +17,29 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.littlebit.photos.model.ScaleTransitionDirection
 import com.littlebit.photos.ui.screens.audio.AudioViewModel
-import com.littlebit.photos.ui.screens.audio.player.PlayAudioScreen
-import com.littlebit.photos.ui.screens.audio.player.PlayAudioViewModel
+import com.littlebit.photos.ui.screens.audio.player.AudioScreen
+import com.littlebit.photos.ui.screens.audio.player.XAudioViewModel
 import com.littlebit.photos.ui.screens.home.HomeScreen
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
 import com.littlebit.photos.ui.screens.images.details.ImageDetailsScreen
 import com.littlebit.photos.ui.screens.settings.SettingsScreen
 import com.littlebit.photos.ui.screens.settings.SettingsViewModel
 import com.littlebit.photos.ui.screens.videos.VideoViewModel
+import com.littlebit.photos.ui.screens.videos.player.VideoPlayerViewModel
 import com.littlebit.photos.ui.screens.videos.player.VideoScreen
 
 @RequiresApi(34)
 @Composable
+@UnstableApi
 fun NavigationGraph(
     navController: NavHostController,
     startDestination: String,
     photosViewModel: PhotosViewModel,
     videoViewModel: VideoViewModel,
     audioViewModel: AudioViewModel,
-    playAudioViewModel: PlayAudioViewModel,
     settingsViewModel: SettingsViewModel,
+    videoPlayerViewModel: VideoPlayerViewModel,
+    xAudioViewModel: XAudioViewModel,
 ) {
     NavHost(
         navController = navController,
@@ -61,6 +65,7 @@ fun NavigationGraph(
                 photosViewModel,
                 videoViewModel,
                 audioViewModel,
+                xAudioViewModel
             )
         }
         composable(
@@ -115,16 +120,14 @@ fun NavigationGraph(
                 navHostController = navController,
                 videoViewModel = videoViewModel,
                 videoIndex = videoIndex,
-                listIndex = listIndex
+                listIndex = listIndex,
+                videoPlayerViewModel = videoPlayerViewModel
             )
         }
 
 
         composable(
-            route = Screens.PlayAudioScreen.route + "/{audioIndex}",
-            arguments = listOf(
-                navArgument("audioIndex") { type = NavType.IntType }
-            ),
+            route = Screens.XAudioScreen.route,
             enterTransition = {
                 scaleIntoContainer()
             },
@@ -138,13 +141,7 @@ fun NavigationGraph(
                 scaleOutOfContainer()
             }
         ) {
-            val audioFileIndex = it.arguments?.getInt("audioIndex") ?: 0
-            PlayAudioScreen(
-                playAudioViewModel,
-                audioViewModel,
-                audioFileIndex,
-                navController = navController,
-            )
+            AudioScreen(xAudioViewModel = xAudioViewModel, navController)
         }
 
         composable(

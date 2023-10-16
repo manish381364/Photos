@@ -55,7 +55,7 @@ class PhotosViewModel @Inject constructor(
         try {
             viewModelScope.launch(Dispatchers.Default) {
                 val media = withContext(customDispatcher) {
-                    mediaRepository.getImagesGroupedByDate(context.contentResolver, isLoading)
+                    mediaRepository.getImagesGroupedByDate(isLoading = isLoading)
                 }
                 _photoGroups.value = media.first
                 photos.value = media.second
@@ -70,10 +70,9 @@ class PhotosViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.Default) {
             withContext(addImageGroupDispatcher) {
                 mediaRepository.addImagesGroupedByDate(
-                    context.contentResolver,
-                    _photoGroups,
-                    _photos,
-                    isLoading
+                    photoGroups = _photoGroups,
+                    photos = _photos,
+                    isLoading = isLoading
                 )
             }
         }

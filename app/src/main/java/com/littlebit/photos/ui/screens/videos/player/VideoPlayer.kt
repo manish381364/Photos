@@ -29,7 +29,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.ui.PlayerView
 import androidx.navigation.NavHostController
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
@@ -44,7 +43,8 @@ fun VideoScreen(
     navHostController: NavHostController,
     videoViewModel: VideoViewModel,
     listIndex: Int,
-    videoIndex: Int
+    videoIndex: Int,
+    videoPlayerViewModel: VideoPlayerViewModel
 ) {
     val videoList by videoViewModel.videoGroups.collectAsStateWithLifecycle()
     val videoUriList = videoList[listIndex].videos.map { videoItem ->
@@ -55,7 +55,7 @@ fun VideoScreen(
             uriList = videoUriList,
             startIndex = videoIndex,
             navHostController = navHostController,
-            viewModel = viewModel()
+            viewModel = videoPlayerViewModel
         )
     }
 }
@@ -79,6 +79,7 @@ fun XVideoPlayerScreen(
     val playerView = remember {
         PlayerView(context)
     }
+
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
 
 
@@ -113,12 +114,12 @@ fun XVideoPlayerScreen(
 
     DisposableEffect(Unit) {
         val lifecycleObserver = object : DefaultLifecycleObserver {
-            override fun onPause(owner: LifecycleOwner) {
+            override fun onStop(owner: LifecycleOwner) {
                 // Pause the player when the app goes into the background
                 viewModel.pause()
             }
 
-            override fun onResume(owner: LifecycleOwner) {
+            override fun onStart(owner: LifecycleOwner) {
                 // Resume the player when the app returns to the foreground
                 viewModel.resume()
             }

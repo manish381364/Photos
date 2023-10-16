@@ -8,5 +8,6 @@ sealed class Screens(val route: String) {
     data object  VideoGridScreen : Screens("videoGridScreen")
     data object SearchScreen : Screens("searchScreen")
     data object AudioScreen : Screens("audioScreen")
+    data object XAudioScreen : Screens("xAudioScreen")
     data object PlayAudioScreen : Screens("playAudioScreen")
 }

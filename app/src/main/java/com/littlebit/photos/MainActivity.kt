@@ -18,15 +18,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.util.UnstableApi
 import androidx.navigation.compose.rememberNavController
 import com.bumptech.glide.annotation.GlideModule
 import com.littlebit.photos.ui.navigation.NavigationGraph
 import com.littlebit.photos.ui.navigation.Screens
 import com.littlebit.photos.ui.screens.audio.AudioViewModel
-import com.littlebit.photos.ui.screens.audio.player.PlayAudioViewModel
+import com.littlebit.photos.ui.screens.audio.player.XAudioViewModel
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
 import com.littlebit.photos.ui.screens.settings.SettingsViewModel
 import com.littlebit.photos.ui.screens.videos.VideoViewModel
+import com.littlebit.photos.ui.screens.videos.player.VideoPlayerViewModel
 import com.littlebit.photos.ui.theme.PhotosTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -35,13 +37,15 @@ import dagger.hilt.android.AndroidEntryPoint
 @Suppress("DEPRECATION")
 @RequiresApi(34)
 @GlideModule
+@UnstableApi
 class MainActivity : ComponentActivity() {
 
     private val photosViewModel: PhotosViewModel by viewModels()
     private val videoViewModel: VideoViewModel by viewModels()
     private val audioViewModel: AudioViewModel by viewModels()
-    private val playAudioViewModel: PlayAudioViewModel by viewModels()
     private val settingsViewModel: SettingsViewModel by viewModels()
+    private val videoPlayerViewModel: VideoPlayerViewModel by viewModels()
+    private val xAudioViewModel: XAudioViewModel by viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -50,10 +54,9 @@ class MainActivity : ComponentActivity() {
         videoViewModel.getData(this)
         audioViewModel.getData(this)
         setContent {
-            BitMediaApp(photosViewModel, videoViewModel, audioViewModel, playAudioViewModel, settingsViewModel)
+            BitMediaApp(photosViewModel, videoViewModel, audioViewModel, settingsViewModel, videoPlayerViewModel, xAudioViewModel)
         }
     }
-
 
 
     @Deprecated("Deprecated in Java")
@@ -80,12 +83,14 @@ class MainActivity : ComponentActivity() {
 
 @RequiresApi(34)
 @Composable
+@UnstableApi
 fun BitMediaApp(
     photosViewModel: PhotosViewModel,
     videoViewModel: VideoViewModel,
     audioViewModel: AudioViewModel,
-    playAudioViewModel: PlayAudioViewModel,
     settingsViewModel: SettingsViewModel,
+    videoPlayerViewModel: VideoPlayerViewModel,
+    xAudioViewModel: XAudioViewModel
 ) {
     val currentTheme by settingsViewModel.isDarkTheme.collectAsStateWithLifecycle()
     val systemTheme = isSystemInDarkTheme()
@@ -106,8 +111,9 @@ fun BitMediaApp(
                 photosViewModel = photosViewModel,
                 videoViewModel = videoViewModel,
                 audioViewModel = audioViewModel,
-                playAudioViewModel = playAudioViewModel,
-                settingsViewModel = settingsViewModel
+                settingsViewModel = settingsViewModel,
+                videoPlayerViewModel = videoPlayerViewModel,
+                xAudioViewModel = xAudioViewModel
             )
         }
     }

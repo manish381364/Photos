@@ -50,7 +50,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,17 +81,17 @@ import java.util.concurrent.Executors
 import javax.inject.Inject
 
 @Composable
-fun FileInfo(currentFile: MutableState<AudioItem>, removeFileInfo: () -> Unit = {}) {
-    val fileSize = formatFileSize(LocalContext.current, currentFile.value.size)
+fun FileInfo(currentFile: AudioItem, removeFileInfo: () -> Unit = {}) {
+    val fileSize = formatFileSize(LocalContext.current, currentFile.size)
     Surface {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.systemBars)
         ) {
-            if (currentFile.value.thumbNail != null) {
+            if (currentFile.thumbNail != null) {
                 Image(
-                    bitmap = currentFile.value.thumbNail!!,
+                    bitmap = currentFile.thumbNail,
                     contentDescription = "",
                     modifier = Modifier
                         .fillMaxWidth()
@@ -139,21 +138,21 @@ fun FileInfo(currentFile: MutableState<AudioItem>, removeFileInfo: () -> Unit = 
                         .padding(22.dp)
                 )
                 Text(
-                    text = currentFile.value.displayName,
+                    text = currentFile.displayName,
                     style = MaterialTheme.typography.titleSmall,
                     overflow = TextOverflow.Ellipsis,
                     maxLines = 1
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = fileSize + ", ${currentFile.value.dateAdded}",
+                    text = fileSize + ", ${currentFile.dateAdded}",
                     style = MaterialTheme.typography.bodySmall,
                     overflow = TextOverflow.Ellipsis,
                     maxLines = 1
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = currentFile.value.duration,
+                    text = currentFile.duration,
                     style = MaterialTheme.typography.bodySmall,
                     overflow = TextOverflow.Ellipsis,
                     maxLines = 1
@@ -172,7 +171,7 @@ fun FileInfo(currentFile: MutableState<AudioItem>, removeFileInfo: () -> Unit = 
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = currentFile.value.path,
+                        text = currentFile.path,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -190,7 +189,7 @@ fun FileInfo(currentFile: MutableState<AudioItem>, removeFileInfo: () -> Unit = 
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Modified " + currentFile.value.dateAdded,
+                        text = "Modified " + currentFile.dateAdded,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -358,7 +357,7 @@ fun AudioItem(
 
 @Composable
 private fun getAudioItemColor(audioFile: AudioItem) =
-    if (!audioFile.isSelected.value) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primary.copy(
+    if (!audioFile.isSelected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primary.copy(
         0.3f
     )
 
@@ -366,13 +365,13 @@ private fun getAudioItemColor(audioFile: AudioItem) =
 private fun getTint(
     isSelectionInProcess: Boolean,
     audioFile: AudioItem
-) = if (isSelectionInProcess && audioFile.isSelected.value) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+) = if (isSelectionInProcess && audioFile.isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
 
 @Composable
 private fun getIcon(
     isSelectionInProcess: Boolean,
     audioFile: AudioItem
-) = if (isSelectionInProcess && audioFile.isSelected.value) Icons.Outlined.CheckCircle else if (isSelectionInProcess) Icons.Outlined.Circle else Icons.Outlined.MoreVert
+) = if (isSelectionInProcess && audioFile.isSelected) Icons.Outlined.CheckCircle else if (isSelectionInProcess) Icons.Outlined.Circle else Icons.Outlined.MoreVert
 
 @HiltViewModel
 class AudioViewModel @Inject constructor(
@@ -414,10 +413,10 @@ class AudioViewModel @Inject constructor(
     }
 
     fun setSelectedAudio(audioIndex: Int) {
-        _audioItemList.value[audioIndex].isSelected.value =
-            !_audioItemList.value[audioIndex].isSelected.value
-        isSelectionInProcess.value = _audioItemList.value.any { it.isSelected.value }
-        if (_audioItemList.value[audioIndex].isSelected.value) {
+        _audioItemList.value[audioIndex].isSelected =
+            !_audioItemList.value[audioIndex].isSelected
+        isSelectionInProcess.value = _audioItemList.value.any { it.isSelected }
+        if (_audioItemList.value[audioIndex].isSelected) {
             selectedAudioList.value[_audioItemList.value[audioIndex].id] = audioIndex
             selectedAudios.value++
         } else {
@@ -435,7 +434,7 @@ class AudioViewModel @Inject constructor(
     fun selectAllAudio() {
         viewModelScope.launch(Dispatchers.Default) {
             _audioItemList.value.forEachIndexed { index, audio ->
-                audio.isSelected.value = true
+                audio.isSelected = true
                 selectedAudioList.value[audio.id] = index
             }
             isSelectionInProcess.value = true
@@ -446,7 +445,7 @@ class AudioViewModel @Inject constructor(
     fun unSelectAllAudio() {
         viewModelScope.launch(Dispatchers.Default) {
             selectedAudioList.value.forEach { index ->
-                _audioItemList.value[index.value].isSelected.value = false
+                _audioItemList.value[index.value].isSelected = false
             }
             selectedAudioList.value.clear()
             isSelectionInProcess.value = false

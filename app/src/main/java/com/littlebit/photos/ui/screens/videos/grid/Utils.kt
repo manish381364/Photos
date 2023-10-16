@@ -73,6 +73,28 @@ fun VideoGridList(
     val videoGroups by videoViewModel.videoGroups.collectAsStateWithLifecycle()
     val isLoading by videoViewModel.isLoading.collectAsStateWithLifecycle()
 
+    LazyColumn(state = scrollState, modifier = Modifier
+        .fillMaxSize()
+        .pullRefresh(pullRefreshState)) {
+        item {
+            Spacer(modifier = Modifier.height(100.dp))
+            EmptyMessage(videoGroups, isLoading)
+        }
+        items(videoGroups.size) { listIndex ->
+            val videoGroup = videoGroups[listIndex]
+            VideoGroupSection(videoGroup, videoViewModel, listIndex, navHostController)
+        }
+        item {
+            Spacer(modifier = Modifier.height(100.dp))
+        }
+    }
+}
+
+@Composable
+private fun EmptyMessage(
+    videoGroups: MutableList<VideoGroup>,
+    isLoading: Boolean
+) {
     if (videoGroups.isEmpty()) {
         Box(
             Modifier
@@ -106,22 +128,6 @@ fun VideoGridList(
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
-        }
-        return
-    }
-
-    LazyColumn(state = scrollState, modifier = Modifier
-        .fillMaxSize()
-        .pullRefresh(pullRefreshState)) {
-        item {
-            Spacer(modifier = Modifier.height(100.dp))
-        }
-        items(videoGroups.size) { listIndex ->
-            val videoGroup = videoGroups[listIndex]
-            VideoGroupSection(videoGroup, videoViewModel, listIndex, navHostController)
-        }
-        item {
-            Spacer(modifier = Modifier.height(100.dp))
         }
     }
 }

@@ -41,20 +41,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
 import com.littlebit.photos.model.AudioItem
 import com.littlebit.photos.model.ScaleTransitionDirection
 import com.littlebit.photos.ui.navigation.Screens
 import com.littlebit.photos.ui.navigation.scaleIntoContainer
 import com.littlebit.photos.ui.navigation.scaleOutOfContainer
+import com.littlebit.photos.ui.screens.audio.player.UIEvents
+import com.littlebit.photos.ui.screens.audio.player.XAudioViewModel
 import com.littlebit.photos.ui.screens.home.ScreenTopBar
 
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
+@UnstableApi
 fun AudioListScreen(
     navHostController: NavHostController,
     audioViewModel: AudioViewModel,
+    xAudioViewModel: XAudioViewModel,
     audioScreenListState: LazyListState,
     showAlertDialog: MutableState<Boolean>,
 ) {
@@ -66,7 +71,9 @@ fun AudioListScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
-            if (audioList.isEmpty()) audioViewModel.loadAudio(context)
+            if (audioList.isEmpty()){
+                audioViewModel.loadAudio(context)
+            }
         }
     }
     LaunchedEffect(Unit) {
@@ -112,6 +119,7 @@ fun AudioListScreen(
         refreshing = isRefreshing,
         onRefresh = {
             audioViewModel.refreshAudioList(context)
+            xAudioViewModel.loadAudioData()
             if (audioViewModel.isSelectionProgress()) {
                 audioViewModel.unSelectAllAudio()
             }
@@ -148,10 +156,19 @@ fun AudioListScreen(
                                 onClick = {
                                     if (isSelectionInProcess) {
                                         audioViewModel.setSelectedAudio(index)
-                                    } else
-                                        navHostController.navigate(Screens.PlayAudioScreen.route + "/${index}") {
+                                    } else {
+                                        xAudioViewModel.onUiEvents(UIEvents.SelectedAudioChange(index))
+                                        if(!xAudioViewModel.isPlaying){
+                                            xAudioViewModel.onUiEvents(UIEvents.PlayPause)
+                                        }
+                                        if (!xAudioViewModel.isServiceRunning) {
+                                            xAudioViewModel.isServiceRunning = true
+                                            xAudioViewModel.startService(context)
+                                        }
+                                        navHostController.navigate(Screens.XAudioScreen.route) {
                                             launchSingleTop = true
                                         }
+                                    }
                                 },
                                 audioViewModel,
                                 index
@@ -184,7 +201,7 @@ private fun FileInfo(
         enter = scaleIntoContainer(),
         exit = scaleOutOfContainer(direction = ScaleTransitionDirection.INWARDS),
     ) {
-        FileInfo(currentFile) {
+        FileInfo(currentFile.value) {
             showFileInfo.value = false
         }
         BackHandler {
