@@ -1,5 +1,5 @@
 # Photos App - Displaying Photos and Videos with Jetpack Compose
-<img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" alt="App_Icon" width="80">
+<img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" alt="App_Icon" width="30">
 Photos App Logo
 
 The Photos App is a modern and user-friendly Android application developed using Jetpack Compose and Kotlin, following the MVVM (Model-View-ViewModel) architecture. It allows users to effortlessly browse and view both photos and videos from their device's internal storage. The app leverages the power of Jetpack Compose, a modern UI toolkit, to provide a seamless and engaging user experience.
@@ -12,15 +12,16 @@ The Photos App is a modern and user-friendly Android application developed using
 - **Photos Grid**: The Photos Grid screen beautifully presents the user's photos in a grid layout, allowing for easy browsing and selection. Jetpack Compose animations enhance the overall interaction.
 
 - **Videos Grid**: Users can explore and watch their favorite videos using the Videos Grid screen, providing a fluid and responsive video playback experience.
-  
-## Screenshot
-<img src="app/src/main/res/drawable/screenshot.png" alt="App_Icon" width="300">
+
+- **Search**: The app allows users to search for photos and videos by name, using the Search screen. The search results are displayed in a grid layout, similar to the Photos Grid screen.
+
+- **Audio List**: The Audio List screen displays all the audio files on the user's device, allowing them to play and manage their audio files.
+
 
 ## Code Sample - HomeScreen
 
 ```kotlin
-@OptIn(ExperimentalMaterial3Api::class)
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+
 @Composable
 fun HomeScreen(
     navHostController: NavHostController,
@@ -32,6 +33,7 @@ fun HomeScreen(
     val currentScreen = rememberSaveable { mutableStateOf(Screens.HomeScreen.route) }
     val showAlertDialog = rememberSaveable { mutableStateOf(false) }
     val bottomBarVisibility = rememberSaveable { mutableStateOf(true) }
+    val confirmDelete = rememberSaveable { mutableStateOf(false) }
     val totalSelectedImages by photosViewModel.selectedImages.collectAsStateWithLifecycle()
     val totalSelectedAudios by audioViewModel.selectedAudios.collectAsStateWithLifecycle()
     val totalSelectedVideos by videoViewModel.selectedVideos.collectAsStateWithLifecycle()
@@ -58,165 +60,33 @@ fun HomeScreen(
         )
     }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-    ) {
-        Crossfade(
-            targetState = currentScreen.value,
-            label = "Screens",
-            animationSpec = tween(300, easing = EaseIn)
-        ) { screen ->
-            when (screen) {
-                Screens.HomeScreen.route -> {
-                    AnimatedVisibility(true) {
-                        ImageGridScreen(
-                            navHostController,
-                            photosViewModel,
-                            bottomBarVisibility,
-                            imageScreenListState,
-                            showAlertDialog
-                        )
-                    }
-                }
-
-                Screens.SearchScreen.route -> {
-                    AnimatedVisibility(true) {
-                        SearchScreen(
-                            navHostController,
-                            photosViewModel = photosViewModel,
-                            videoViewModel = videoViewModel,
-                            currentScreen = currentScreen
-                        )
-                    }
-                }
-
-                Screens.AudioListScreen.route -> {
-                    AnimatedVisibility(true) {
-                        AudioListScreen(navHostController, audioViewModel, audioScreenListState, showAlertDialog)
-                    }
-                }
-
-                Screens.VideoGridScreen.route -> {
-                    AnimatedVisibility(true) {
-                        VideosGridScreen(
-                            videoViewModel,
-                            bottomBarVisibility,
-                            videoScreenListState,
-                            navHostController,
-                            showAlertDialog
-                        )
-                    }
-                }
-            }
-        }
-
-
-        FloatingProfileDialog(showAlertDialog, navHostController)
-
-        val onClickUnSelectAll = removeAllSelected(
-            audioSelectionInProgress,
-            audioViewModel,
-            videoSelectionInProgress,
-            videoViewModel,
-            photosViewModel
-        )
-        val totalSelected = getTotalSelected(
-            audioSelectionInProgress,
-            totalSelectedAudios,
-            photosSelectionInProgress,
-            totalSelectedImages,
-            totalSelectedVideos
-        )
-        AnimatedVisibility(
-            visible = bottomSheetVisible,
-            enter = slideInVertically(initialOffsetY = { -it }),
-            exit = slideOutVertically(targetOffsetY = { -it }),
-            modifier = Modifier.align(Alignment.TopStart)
-        ) {
-            FloatingActionButton(
-                onClick = {
-                    onClickUnSelectAll()
-                },
-                modifier = Modifier
-                    .padding(top = 100.dp, start = 16.dp, end = 16.dp)
-                    .width(70.dp)
-            ) {
-                Row {
-                    Icon(imageVector = Icons.Outlined.Close, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = totalSelected.toString(),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
-            }
-        }
-
-
-        AnimatedVisibility(
-            visible = bottomBarVisibility.value && !bottomSheetVisible,
-            enter = slideInVertically(initialOffsetY = { it }),
-            exit = slideOutVertically(targetOffsetY = { it }),
-            modifier = Modifier.align(Alignment.BottomCenter)
-        ) {
-            HomeScreenBottomBar(
-                Modifier,
-                currentScreen,
-                imageScreenListState,
-                videoScreenListState,
-                audioScreenListState
-            )
-        }
-
-
-        AnimatedVisibility(
-            visible = bottomSheetVisible,
-            enter = slideInVertically(initialOffsetY = { it }),
-            exit = slideOutVertically(targetOffsetY = { it }),
-            modifier = Modifier.align(Alignment.BottomCenter)
-        ) {
-            val sheetState = rememberBottomSheetScaffoldState()
-            BottomSheetScaffold(
-                sheetContent = {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .fillMaxHeight(0.1f),
-                        horizontalArrangement = Arrangement.SpaceAround,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = { onClickUnSelectAll() }) {
-                            Icon(imageVector = Icons.Outlined.Close, contentDescription = "")
-                        }
-                        Column(Modifier.padding(4.dp), horizontalAlignment = Alignment.Start) {
-                            Text(
-                                text = "$totalSelected Selected",
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = memorySize,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                        IconButton(onClick = { onClickShareButton(audioSelectionInProgress, audioViewModel, videoSelectionInProgress, videoViewModel, photosViewModel, context, onClickUnSelectAll = onClickUnSelectAll )}) {
-                           Icon(imageVector = Icons.Outlined.Share, contentDescription = "Share Button")
-                        }
-                        IconButton(onClick = { onClickDeleteButton(audioSelectionInProgress, audioViewModel, videoSelectionInProgress, videoViewModel, photosViewModel, context, trashLauncher) }) {
-                            Icon(imageVector = Icons.Outlined.Delete, contentDescription = "Delete Button")
-                        }
-                    }
-                },
-                sheetPeekHeight = 120.dp,
-                scaffoldState = sheetState,
-                sheetSwipeEnabled = true,
-                sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-            ) {}
-        }
-    }
+    HomeScreenContent(
+        currentScreen,
+        navHostController,
+        photosViewModel,
+        bottomBarVisibility,
+        imageScreenListState,
+        showAlertDialog,
+        videoViewModel,
+        audioViewModel,
+        audioScreenListState,
+        videoScreenListState,
+        audioSelectionInProgress,
+        videoSelectionInProgress,
+        totalSelectedAudios,
+        photosSelectionInProgress,
+        totalSelectedImages,
+        totalSelectedVideos,
+        bottomSheetVisible,
+        memorySize,
+        context,
+        trashLauncher,
+        confirmDelete
+    )
 }
 ```
+
+
 ## MVVM Architecture
  The Photos App follows the MVVM (Model-View-ViewModel) architecture:
  
@@ -243,6 +113,13 @@ To use the Photos App:
 - *Kotlin*: A powerful and expressive programming language for Android development.
 - *Android Architecture Components*: Used for ViewModel and LiveData management.
 - *Media3 ExoPlayer*: Library for media playback and streaming.
+- *Glide*: Image loading library for Android.
+- *Material Components*: Material Design components for Android.
+- *Accompanist*: A collection of extension libraries for Jetpack Compose.
+- *Kotlin Coroutines*: Asynchronous or non-blocking programming for Android.
+- *Kotlin Flow*: A stream of data that can be computed asynchronously.
+- *hilt*: Dependency injection library for Android.
+- *Room*: Persistence library for storing and managing data in an SQLite database.
   
 ## Contribution
 Contributions to the Photos App are welcome! If you find any issues or want to enhance the app, feel free to submit a pull request.
@@ -264,7 +141,7 @@ copies or substantial portions of the Software.**
 
 **THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE

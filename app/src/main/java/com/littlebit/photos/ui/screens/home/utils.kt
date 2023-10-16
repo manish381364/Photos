@@ -6,9 +6,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Help
 import androidx.compose.material.icons.filled.Audiotrack
@@ -37,6 +38,8 @@ import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.VideoCameraBack
+import androidx.compose.material.pullrefresh.PullRefreshState
+import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.CardDefaults
@@ -62,6 +65,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.SoftwareKeyboardController
@@ -83,10 +87,9 @@ import com.littlebit.photos.ui.navigation.Screens
 import com.littlebit.photos.ui.screens.audio.AudioViewModel
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
 import com.littlebit.photos.ui.screens.videos.VideoViewModel
+import com.littlebit.photos.ui.screens.videos.grid.isLandscape
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.util.*
 
 
@@ -94,7 +97,6 @@ import java.util.*
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun ImageItem(
-    modifier: Modifier = Modifier,
     imageUri: Uri,
     onImageClick: (Uri) -> Unit = {},
     contentScale: ContentScale = ContentScale.Crop,
@@ -107,20 +109,31 @@ fun ImageItem(
     val selectedImages by photosViewModel.selectedImages.collectAsStateWithLifecycle()
     val selectedImageList by photosViewModel.selectedImageList.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val imageSize = if(isLandscape()) (LocalConfiguration.current.screenWidthDp-1)/5 else (LocalConfiguration.current.screenWidthDp-1)/3
     val vibrator = ContextCompat.getSystemService(context, Vibrator::class.java)
-    val size by animateDpAsState(targetValue = if (image.isSelected) 121.dp else 141.dp, label = "")
+    val size by animateDpAsState(
+        targetValue = if (image.isSelected) (imageSize-10).dp else imageSize.dp,
+        label = "",
+        animationSpec = tween(90, 10)
+    )
+    val cornerSize by animateDpAsState(
+        targetValue = if (image.isSelected) 20.dp else 0.dp,
+        label = "",
+        animationSpec = tween(90, 10)
+    )
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(141.dp)
-            .background(MaterialTheme.colorScheme.surfaceBright)
+            .background(if(image.isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
     ) {
         GlideImage(
             model = imageUri,
             contentDescription = null,
-            modifier = modifier
+            modifier = Modifier
+                .padding(PaddingValues(1.dp))
                 .size(size)
-                .padding(1.dp)
+                .clip(RoundedCornerShape(cornerSize))
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onLongPress = {
@@ -169,13 +182,10 @@ fun ImageItem(
                 .align(Alignment.TopStart)
                 .padding(2.dp)
         )
-
-
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
-@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun ImageGroupSection(
     imageGroup: ImageGroup,
@@ -192,13 +202,12 @@ fun ImageGroupSection(
         }
         Spacer(modifier = Modifier.height(6.dp))
         FlowRow(
-            Modifier.fillMaxWidth(1f),
+            Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Start,
             verticalArrangement = Arrangement.Top,
         ) {
             imageGroup.images.forEachIndexed { index, image ->
                 ImageItem(
-                    modifier = Modifier.weight(1f),
                     imageUri = image.uri!!,
                     {
                         imageIndex.value = index
@@ -217,21 +226,25 @@ fun ImageGroupSection(
 }
 
 
-@RequiresApi(Build.VERSION_CODES.O)
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun ImageGridList(
     navHostController: NavHostController,
     photosViewModel: PhotosViewModel,
-    scrollState: LazyListState
+    scrollState: LazyListState,
+    pullRefreshState: PullRefreshState
 ) {
     val imageGroups by photosViewModel.photoGroups.collectAsStateWithLifecycle()
     val isLoading by photosViewModel.isLoading.collectAsStateWithLifecycle()
     val imageIndex = remember {
         mutableIntStateOf(0)
     }
+
     LazyColumn(
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .pullRefresh(pullRefreshState),
         state = scrollState,
     ) {
         item {
@@ -251,7 +264,7 @@ fun ImageGridList(
             }
         }
         item {
-            Spacer(modifier = Modifier.height(80.dp))
+            Spacer(modifier = Modifier.height(100.dp))
         }
     }
 
@@ -281,8 +294,7 @@ fun ImageGridList(
                         fontWeight = FontWeight.Bold
                     )
                 }
-            }
-            else {
+            } else {
                 CircularProgressIndicator(
                     Modifier
                         .align(Alignment.Center),
@@ -294,12 +306,10 @@ fun ImageGridList(
 }
 
 
-
-@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun DateWithMarkButton(
     modifier: Modifier = Modifier,
-    date: String = LocalDate.now().format(DateTimeFormatter.ofPattern("EEE, dd MMM")).toString(),
+    date: String,
     onButtonClick: () -> Unit = {}
 ) {
     Row(
@@ -325,71 +335,81 @@ const val profile_image =
     "https://w0.peakpx.com/wallpaper/343/852/HD-wallpaper-iphone-planet-amoled-apple-galaxy-gold-life-space-strange-ultra.jpg"
 
 
-@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreenTopBar(
+fun ScreenTopBar(
     modifier: Modifier = Modifier,
-    showAlertDialog: MutableState<Boolean>,
-    photosViewModel: PhotosViewModel,
     scrollBehavior: TopAppBarScrollBehavior,
+    title: String,
+    onClick: () -> Unit
 ) {
     val isImageLoading = remember {
         mutableStateOf(false)
     }
-    val context = LocalContext.current
+    Box {
+        TopAppBar(
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                scrolledContainerColor = MaterialTheme.colorScheme.surface
+            ),
+            title = {
+                Box(Modifier.fillMaxWidth()) {
 
-    TopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            scrolledContainerColor = MaterialTheme.colorScheme.surface
-        ),
-        title = {
-            Box(Modifier.fillMaxWidth()) {
-
-                Text(
-                    text = "Bit Photos",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-
-                AsyncImage(
-                    model = profile_image,
-                    contentDescription = "",
-                    modifier = Modifier
-                        .padding(4.dp)
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .align(Alignment.BottomEnd)
-                        .clickable {
-                            showAlertDialog.value = true
-                            photosViewModel.refresh(context)
-                        },
-                    contentScale = ContentScale.Crop,
-                    onLoading = {
-                        // Display a circular, indeterminate progress indicator
-                        isImageLoading.value = true
-                    },
-                    onError = {
-                        isImageLoading.value = false
-                    },
-                    onSuccess = {
-                        isImageLoading.value = false
-                    }
-                )
-                AnimatedVisibility(visible = isImageLoading.value, modifier = Modifier.align(Alignment.BottomEnd)) {
-                    CircularProgressIndicator(
-                        Modifier
-                            .size(20.dp),
-                        strokeWidth = 2.dp
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.Center)
                     )
+
+                    AsyncImage(
+                        model = profile_image,
+                        contentDescription = "",
+                        modifier = Modifier
+                            .padding(4.dp)
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .align(Alignment.BottomEnd)
+                            .clickable {
+                                onClick()
+                            },
+                        contentScale = ContentScale.Crop,
+                        onLoading = {
+                            // Display a circular, indeterminate progress indicator
+                            isImageLoading.value = true
+                        },
+                        onError = {
+                            isImageLoading.value = false
+                        },
+                        onSuccess = {
+                            isImageLoading.value = false
+                        }
+                    )
+                    AnimatedVisibility(
+                        visible = isImageLoading.value,
+                        modifier = Modifier.align(Alignment.BottomEnd)
+                    ) {
+                        CircularProgressIndicator(
+                            Modifier
+                                .padding(4.dp)
+                                .size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
                 }
-            }
-        },
-        scrollBehavior = scrollBehavior,
-        modifier = modifier
-    )
+            },
+            scrollBehavior = scrollBehavior,
+            modifier = modifier
+        )
+        if (scrollBehavior.state.heightOffset == 0f)
+            HorizontalDivider(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter),
+                thickness = (0.2).dp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+    }
 }
 
 @Composable
@@ -404,7 +424,7 @@ fun HomeScreenBottomBar(
     val coroutineScope = rememberCoroutineScope()
     val photosSelected = currentScreen.value == Screens.HomeScreen.route
     val searchSelected = currentScreen.value == Screens.SearchScreen.route
-    val audioSelected = currentScreen.value == Screens.AudioListScreen.route
+    val audioSelected = currentScreen.value == Screens.AudioScreen.route
     val videoSelected = currentScreen.value == Screens.VideoGridScreen.route
     val photoIcon = if (photosSelected) Icons.Filled.Image else Icons.Outlined.Image
     val searchIcon = if (searchSelected) Icons.Filled.Search else Icons.Outlined.Search
@@ -421,10 +441,14 @@ fun HomeScreenBottomBar(
     BottomAppBar(
         modifier
             .background(
+                MaterialTheme.colorScheme.primaryContainer.copy(0.9f),
+                shape = RoundedCornerShape(topStart = 90.dp, topEnd = 90.dp)
+            )
+            .background(
                 Brush.verticalGradient(getBottomBarContainerColor()),
                 shape = RoundedCornerShape(topStart = 90.dp, topEnd = 90.dp)
             ),
-        containerColor = Color.Transparent
+        containerColor = Color.Transparent,
     ) {
         Spacer(modifier = Modifier.weight(1f))
         NavigationBarItem(
@@ -451,6 +475,7 @@ fun HomeScreenBottomBar(
             icon = { Icon(imageVector = videoIcon, contentDescription = "Video Camera Icon") })
         Spacer(modifier = Modifier.weight(1f))
     }
+
 }
 
 @Composable
@@ -487,7 +512,7 @@ private fun getOnAudioIconClick(
         coroutineScope.launch {
             audioScreenListState.animateScrollToItem(0)
         }
-    else currentScreen.value = Screens.AudioListScreen.route
+    else currentScreen.value = Screens.AudioScreen.route
 }
 
 @Composable
@@ -508,7 +533,7 @@ private fun getOnPhotoIconClick(
 ): () -> Unit = {
     if (imageScreenListState.firstVisibleItemIndex > 2 && photosSelected) {
         coroutineScope.launch {
-            imageScreenListState.scrollToItem(0, 2)
+            imageScreenListState.animateScrollToItem(0)
         }
     } else currentScreen.value = Screens.HomeScreen.route
 }
@@ -567,7 +592,7 @@ fun FloatingProfileDialog(
                             )
                         }
                         Text(
-                            text = "010-Bit-010",
+                            text = "010-Media-010",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.align(
@@ -582,8 +607,8 @@ fun FloatingProfileDialog(
                             .padding(PaddingValues(10.dp)),
                         shape = MaterialTheme.shapes.extraLarge,
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-
-                        ) {
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp)
+                    ) {
                         Row(
                             Modifier
                                 .fillMaxWidth()
@@ -696,6 +721,7 @@ fun FloatingProfileDialog(
     }
 }
 
+
 @Composable
 fun DialogItem(icon: ImageVector, title: String, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -715,6 +741,11 @@ fun DialogItem(icon: ImageVector, title: String, onClick: () -> Unit) {
         )
     }
 }
+
+
+
+
+
 
 
 fun getTotalMemorySize(
@@ -745,7 +776,7 @@ fun getTotalSelected(
     if (audioSelectionInProgress) totalSelectedAudios else if (photosSelectionInProgress) totalSelectedImages else totalSelectedVideos
 
 
-fun removeAllSelected(
+fun unSelectAllSelected(
     audioSelectionInProgress: Boolean,
     audioViewModel: AudioViewModel,
     videoSelectionInProgress: Boolean,

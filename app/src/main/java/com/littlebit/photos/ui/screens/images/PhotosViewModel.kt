@@ -22,6 +22,7 @@ import androidx.lifecycle.viewModelScope
 import com.littlebit.photos.model.ImageGroup
 import com.littlebit.photos.model.PhotoItem
 import com.littlebit.photos.model.repository.MediaRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -29,10 +30,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
+import javax.inject.Inject
 
 
-class PhotosViewModel(
-    private val mediaRepository: MediaRepository = MediaRepository()
+@HiltViewModel
+class PhotosViewModel @Inject constructor(
+    private val mediaRepository: MediaRepository
 ) : ViewModel() {
     private val _photos = MutableStateFlow(mutableListOf<PhotoItem>())
     private val _photoGroups = MutableStateFlow(mutableListOf<ImageGroup>())
@@ -174,20 +177,12 @@ class PhotosViewModel(
 
     fun moveToTrashSelectedImages(
         context: Context,
-        trashLauncher: ManagedActivityResultLauncher<IntentSenderRequest, ActivityResult>
+        trashLauncher: ManagedActivityResultLauncher<IntentSenderRequest, ActivityResult>,
     ) {
         val contentResolver = context.contentResolver
         viewModelScope.launch(Dispatchers.Default) {
             val selectedImages = getSelectedImages()
-            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-                selectedImages.forEach {
-                    contentResolver.delete(it!!, null, null)
-                }
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-                selectedImages.forEach {
-                    contentResolver.delete(it!!, null, null)
-                }
-            } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 val intentSender = MediaStore.createTrashRequest(
                     contentResolver,
                     selectedImages,
@@ -228,12 +223,8 @@ class PhotosViewModel(
             val contentResolver = context.contentResolver
             val selectedImages = mutableListOf<Uri>()
             _photoGroups.value[listIndex].images[imageIndex].uri?.let { selectedImages.add(it) }
-            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && Build.VERSION.SDK_INT < Build.VERSION_CODES.R)) {
                 showDeleteDialog.value = true
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-                selectedImages.forEach {
-                    contentResolver.delete(it, null, null)
-                }
             } else {
                 val intentSender = MediaStore.createTrashRequest(
                     contentResolver,
@@ -249,7 +240,7 @@ class PhotosViewModel(
         }
     }
 
-    fun removeImagesFromList(context: Context) {
+    fun removeImagesFromList(context: Context, message: String = "Moved to trash") {
         viewModelScope.launch(Dispatchers.Default) {
             val listMap = mutableMapOf<Int, MutableList<Int>>()
             selectedImageList.value.forEach { item ->
@@ -269,11 +260,12 @@ class PhotosViewModel(
                     photoGroups.value[listIndex].images.addAll(filteredList)
                 }
             }
-            photoGroups.value = photoGroups.value.filterIndexed{ _, item -> item.images.size != 0 }.toMutableList()
+            photoGroups.value =
+                photoGroups.value.filterIndexed { _, item -> item.images.size != 0 }.toMutableList()
             selectedImageList.value.clear()
             selectedImages.value = 0
         }
-        Toast.makeText(context, "Moved to trash", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
     fun deletePhoto(listIndex: Int, imageIndex: MutableIntState, context: Context) {
@@ -310,6 +302,47 @@ class PhotosViewModel(
                 Log.d("PERMISSION", "deletePhoto: Permission not granted")
             }
         }
+    }
+
+    fun getData(applicationContext: Context) {
+        // if permission is granted, load media
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(
+                    applicationContext,
+                    Manifest.permission.READ_MEDIA_IMAGES
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                if (_photoGroups.value.isEmpty()) addPhotosGroupedByDate(applicationContext)
+                else loadMedia(applicationContext)
+            }
+        } else {
+            if (ActivityCompat.checkSelfPermission(
+                    applicationContext,
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                if (_photoGroups.value.isEmpty()) addPhotosGroupedByDate(applicationContext)
+                else loadMedia(applicationContext)
+            }
+        }
+    }
+
+    fun isSelectionInProgress(): Boolean {
+        return selectedImages.value > 0
+    }
+
+    fun deleteSelected(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val selectedImages = getSelectedImages()
+                selectedImages.forEach { uri ->
+                    context.contentResolver.delete(uri!!, null, null)
+                }
+            } catch (exception: Exception) {
+                exception.printStackTrace()
+            }
+        }
+        removeImagesFromList(context, "Deleted")
     }
 
 }

@@ -9,11 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.EaseIn
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
@@ -41,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -50,18 +48,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.littlebit.photos.model.ScaleTransitionDirection
 import com.littlebit.photos.ui.navigation.Screens
+import com.littlebit.photos.ui.navigation.scaleIntoContainer
+import com.littlebit.photos.ui.navigation.scaleOutOfContainer
 import com.littlebit.photos.ui.screens.audio.AudioListScreen
 import com.littlebit.photos.ui.screens.audio.AudioViewModel
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
+import com.littlebit.photos.ui.screens.images.details.ConfirmDeleteSelectedDialog
 import com.littlebit.photos.ui.screens.images.grid.ImageGridScreen
 import com.littlebit.photos.ui.screens.search.SearchScreen
 import com.littlebit.photos.ui.screens.videos.VideoViewModel
 import com.littlebit.photos.ui.screens.videos.grid.VideosGridScreen
 
 
-@OptIn(ExperimentalMaterial3Api::class)
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun HomeScreen(
     navHostController: NavHostController,
@@ -73,6 +73,7 @@ fun HomeScreen(
     val currentScreen = rememberSaveable { mutableStateOf(Screens.HomeScreen.route) }
     val showAlertDialog = rememberSaveable { mutableStateOf(false) }
     val bottomBarVisibility = rememberSaveable { mutableStateOf(true) }
+    val confirmDelete = rememberSaveable { mutableStateOf(false) }
     val totalSelectedImages by photosViewModel.selectedImages.collectAsStateWithLifecycle()
     val totalSelectedAudios by audioViewModel.selectedAudios.collectAsStateWithLifecycle()
     val totalSelectedVideos by videoViewModel.selectedVideos.collectAsStateWithLifecycle()
@@ -99,163 +100,357 @@ fun HomeScreen(
         )
     }
 
+    HomeScreenContent(
+        currentScreen,
+        navHostController,
+        photosViewModel,
+        bottomBarVisibility,
+        imageScreenListState,
+        showAlertDialog,
+        videoViewModel,
+        audioViewModel,
+        audioScreenListState,
+        videoScreenListState,
+        audioSelectionInProgress,
+        videoSelectionInProgress,
+        totalSelectedAudios,
+        photosSelectionInProgress,
+        totalSelectedImages,
+        totalSelectedVideos,
+        bottomSheetVisible,
+        memorySize,
+        context,
+        trashLauncher,
+        confirmDelete
+    )
+}
+
+@Composable
+private fun HomeScreenContent(
+    currentScreen: MutableState<String>,
+    navHostController: NavHostController,
+    photosViewModel: PhotosViewModel,
+    bottomBarVisibility: MutableState<Boolean>,
+    imageScreenListState: LazyListState,
+    showAlertDialog: MutableState<Boolean>,
+    videoViewModel: VideoViewModel,
+    audioViewModel: AudioViewModel,
+    audioScreenListState: LazyListState,
+    videoScreenListState: LazyListState,
+    audioSelectionInProgress: Boolean,
+    videoSelectionInProgress: Boolean,
+    totalSelectedAudios: Int,
+    photosSelectionInProgress: Boolean,
+    totalSelectedImages: Int,
+    totalSelectedVideos: Int,
+    bottomSheetVisible: Boolean,
+    memorySize: String,
+    context: Context,
+    trashLauncher: ManagedActivityResultLauncher<IntentSenderRequest, ActivityResult>,
+    confirmDelete: MutableState<Boolean>
+) {
     Box(
         Modifier
             .fillMaxSize()
     ) {
-        Crossfade(
-            targetState = currentScreen.value,
-            label = "Screens",
-            animationSpec = tween(300, easing = EaseIn)
-        ) { screen ->
-            when (screen) {
-                Screens.HomeScreen.route -> {
-                    AnimatedVisibility(true) {
-                        ImageGridScreen(
-                            navHostController,
-                            photosViewModel,
-                            bottomBarVisibility,
-                            imageScreenListState,
-                            showAlertDialog
-                        )
-                    }
-                }
-
-                Screens.SearchScreen.route -> {
-                    AnimatedVisibility(true) {
-                        SearchScreen(
-                            navHostController,
-                            photosViewModel = photosViewModel,
-                            videoViewModel = videoViewModel,
-                            currentScreen = currentScreen
-                        )
-                    }
-                }
-
-                Screens.AudioListScreen.route -> {
-                    AnimatedVisibility(true) {
-                        AudioListScreen(navHostController, audioViewModel, audioScreenListState, showAlertDialog)
-                    }
-                }
-
-                Screens.VideoGridScreen.route -> {
-                    AnimatedVisibility(true) {
-                        VideosGridScreen(
-                            videoViewModel,
-                            bottomBarVisibility,
-                            videoScreenListState,
-                            navHostController,
-                            showAlertDialog
-                        )
-                    }
-                }
-            }
-        }
-
-
-        FloatingProfileDialog(showAlertDialog, navHostController)
-
-        val onClickUnSelectAll = removeAllSelected(
+        Screen(
+            currentScreen,
+            navHostController,
+            photosViewModel,
+            bottomBarVisibility,
+            imageScreenListState,
+            showAlertDialog,
+            videoViewModel,
+            audioViewModel,
+            audioScreenListState,
+            videoScreenListState
+        )
+        BottomComponents(
             audioSelectionInProgress,
             audioViewModel,
             videoSelectionInProgress,
             videoViewModel,
-            photosViewModel
-        )
-        val totalSelected = getTotalSelected(
-            audioSelectionInProgress,
+            photosViewModel,
             totalSelectedAudios,
             photosSelectionInProgress,
             totalSelectedImages,
-            totalSelectedVideos
+            totalSelectedVideos,
+            bottomSheetVisible,
+            bottomBarVisibility,
+            currentScreen,
+            imageScreenListState,
+            videoScreenListState,
+            audioScreenListState,
+            memorySize,
+            context,
+            trashLauncher,
+            confirmDelete,
+            modifier = Modifier.align(Alignment.TopStart),
+            bottomBarModifier = Modifier.align(Alignment.BottomCenter)
         )
-        AnimatedVisibility(
-            visible = bottomSheetVisible,
-            enter = slideInVertically(initialOffsetY = { -it }),
-            exit = slideOutVertically(targetOffsetY = { -it }),
-            modifier = Modifier.align(Alignment.TopStart)
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun BottomComponents(
+    audioSelectionInProgress: Boolean,
+    audioViewModel: AudioViewModel,
+    videoSelectionInProgress: Boolean,
+    videoViewModel: VideoViewModel,
+    photosViewModel: PhotosViewModel,
+    totalSelectedAudios: Int,
+    photosSelectionInProgress: Boolean,
+    totalSelectedImages: Int,
+    totalSelectedVideos: Int,
+    bottomSheetVisible: Boolean,
+    bottomBarVisibility: MutableState<Boolean>,
+    currentScreen: MutableState<String>,
+    imageScreenListState: LazyListState,
+    videoScreenListState: LazyListState,
+    audioScreenListState: LazyListState,
+    memorySize: String,
+    context: Context,
+    trashLauncher: ManagedActivityResultLauncher<IntentSenderRequest, ActivityResult>,
+    confirmDelete: MutableState<Boolean>,
+    modifier: Modifier,
+    bottomBarModifier: Modifier
+) {
+    val onClickUnSelectAll = unSelectAllSelected(
+        audioSelectionInProgress,
+        audioViewModel,
+        videoSelectionInProgress,
+        videoViewModel,
+        photosViewModel
+    )
+    val totalSelected = getTotalSelected(
+        audioSelectionInProgress,
+        totalSelectedAudios,
+        photosSelectionInProgress,
+        totalSelectedImages,
+        totalSelectedVideos,
+    )
+
+    AnimatedVisibility(
+        visible = bottomSheetVisible,
+        enter = slideInVertically(initialOffsetY = { -it }),
+        exit = slideOutVertically(targetOffsetY = { -it }),
+        modifier = modifier
+    ) {
+        FloatingActionButton(
+            onClick = {
+                onClickUnSelectAll()
+            },
+            modifier = Modifier
+                .padding(top = 100.dp, start = 16.dp, end = 16.dp)
+                .width(70.dp)
         ) {
-            FloatingActionButton(
-                onClick = {
-                    onClickUnSelectAll()
-                },
-                modifier = Modifier
-                    .padding(top = 100.dp, start = 16.dp, end = 16.dp)
-                    .width(70.dp)
-            ) {
-                Row {
-                    Icon(imageVector = Icons.Outlined.Close, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = totalSelected.toString(),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
+            Row {
+                Icon(imageVector = Icons.Outlined.Close, contentDescription = null)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = totalSelected.toString(),
+                    style = MaterialTheme.typography.titleMedium
+                )
             }
         }
+    }
 
 
-        AnimatedVisibility(
-            visible = bottomBarVisibility.value && !bottomSheetVisible,
-            enter = slideInVertically(initialOffsetY = { it }),
-            exit = slideOutVertically(targetOffsetY = { it }),
-            modifier = Modifier.align(Alignment.BottomCenter)
-        ) {
-            HomeScreenBottomBar(
-                Modifier,
-                currentScreen,
-                imageScreenListState,
-                videoScreenListState,
-                audioScreenListState
+    AnimatedVisibility(
+        visible = bottomBarVisibility.value && !bottomSheetVisible,
+        enter = slideInVertically(initialOffsetY = { it }),
+        exit = slideOutVertically(targetOffsetY = { it }),
+        modifier = bottomBarModifier
+    ) {
+        HomeScreenBottomBar(
+            Modifier,
+            currentScreen,
+            imageScreenListState,
+            videoScreenListState,
+            audioScreenListState
+        )
+    }
+
+
+    AnimatedVisibility(
+        visible = bottomSheetVisible,
+        enter = slideInVertically(initialOffsetY = { it }),
+        exit = slideOutVertically(targetOffsetY = { it }),
+    ) {
+        val sheetState = rememberBottomSheetScaffoldState()
+        BottomSheetScaffold(
+            sheetContent = {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.1f),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { onClickUnSelectAll() }) {
+                        Icon(imageVector = Icons.Outlined.Close, contentDescription = "")
+                    }
+                    Column(Modifier.padding(4.dp), horizontalAlignment = Alignment.Start) {
+                        Text(
+                            text = "$totalSelected Selected",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = memorySize,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    IconButton(onClick = {
+                        onClickShareButton(
+                            audioSelectionInProgress,
+                            audioViewModel,
+                            videoSelectionInProgress,
+                            videoViewModel,
+                            photosViewModel,
+                            context,
+                            onClickUnSelectAll = onClickUnSelectAll
+                        )
+                    }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Share,
+                            contentDescription = "Share Button"
+                        )
+                    }
+                    IconButton(onClick = {
+                        onClickDeleteButton(
+                            audioSelectionInProgress,
+                            audioViewModel,
+                            videoSelectionInProgress,
+                            videoViewModel,
+                            photosViewModel,
+                            context,
+                            trashLauncher,
+                            confirmDelete
+                        )
+                    }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Delete,
+                            contentDescription = "Delete Button"
+                        )
+                    }
+                }
+            },
+            sheetPeekHeight = 120.dp,
+            scaffoldState = sheetState,
+            sheetSwipeEnabled = true,
+            sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ) {}
+    }
+
+    ConfirmDeleteSelectedDialog(
+        showDeleteDialog = confirmDelete,
+        onConfirm = {
+            onConfirmDelete(
+                audioSelectionInProgress,
+                audioViewModel,
+                context,
+                videoSelectionInProgress,
+                videoViewModel,
+                photosViewModel
             )
         }
+    )
+}
 
-
-        AnimatedVisibility(
-            visible = bottomSheetVisible,
-            enter = slideInVertically(initialOffsetY = { it }),
-            exit = slideOutVertically(targetOffsetY = { it }),
-            modifier = Modifier.align(Alignment.BottomCenter)
-        ) {
-            val sheetState = rememberBottomSheetScaffoldState()
-            BottomSheetScaffold(
-                sheetContent = {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .fillMaxHeight(0.1f),
-                        horizontalArrangement = Arrangement.SpaceAround,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = { onClickUnSelectAll() }) {
-                            Icon(imageVector = Icons.Outlined.Close, contentDescription = "")
-                        }
-                        Column(Modifier.padding(4.dp), horizontalAlignment = Alignment.Start) {
-                            Text(
-                                text = "$totalSelected Selected",
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = memorySize,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                        IconButton(onClick = { onClickShareButton(audioSelectionInProgress, audioViewModel, videoSelectionInProgress, videoViewModel, photosViewModel, context, onClickUnSelectAll = onClickUnSelectAll )}) {
-                           Icon(imageVector = Icons.Outlined.Share, contentDescription = "Share Button")
-                        }
-                        IconButton(onClick = { onClickDeleteButton(audioSelectionInProgress, audioViewModel, videoSelectionInProgress, videoViewModel, photosViewModel, context, trashLauncher) }) {
-                            Icon(imageVector = Icons.Outlined.Delete, contentDescription = "Delete Button")
-                        }
-                    }
-                },
-                sheetPeekHeight = 120.dp,
-                scaffoldState = sheetState,
-                sheetSwipeEnabled = true,
-                sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-            ) {}
-        }
+@Composable
+private fun Screen(
+    currentScreen: MutableState<String>,
+    navHostController: NavHostController,
+    photosViewModel: PhotosViewModel,
+    bottomBarVisibility: MutableState<Boolean>,
+    imageScreenListState: LazyListState,
+    showAlertDialog: MutableState<Boolean>,
+    videoViewModel: VideoViewModel,
+    audioViewModel: AudioViewModel,
+    audioScreenListState: LazyListState,
+    videoScreenListState: LazyListState
+) {
+    AnimatedVisibility(
+        currentScreen.value == Screens.HomeScreen.route,
+        enter = scaleIntoContainer(ScaleTransitionDirection.OUTWARDS),
+        exit = scaleOutOfContainer(ScaleTransitionDirection.INWARDS)
+    ) {
+        ImageGridScreen(
+            navHostController,
+            photosViewModel,
+            bottomBarVisibility,
+            imageScreenListState,
+            showAlertDialog
+        )
     }
+    AnimatedVisibility(
+        currentScreen.value == Screens.SearchScreen.route,
+        enter = scaleIntoContainer(ScaleTransitionDirection.OUTWARDS),
+        exit = scaleOutOfContainer(ScaleTransitionDirection.INWARDS)
+    ) {
+        SearchScreen(
+            navHostController,
+            photosViewModel = photosViewModel,
+            videoViewModel = videoViewModel,
+            audioViewModel = audioViewModel,
+            currentScreen = currentScreen
+        )
+    }
+    AnimatedVisibility(
+        currentScreen.value == Screens.AudioScreen.route,
+        enter = scaleIntoContainer(ScaleTransitionDirection.OUTWARDS),
+        exit = scaleOutOfContainer(ScaleTransitionDirection.INWARDS)
+    ) {
+        AudioListScreen(
+            navHostController,
+            audioViewModel,
+            audioScreenListState,
+            showAlertDialog
+        )
+    }
+    AnimatedVisibility(
+        currentScreen.value == Screens.VideoGridScreen.route,
+        enter = scaleIntoContainer(ScaleTransitionDirection.OUTWARDS),
+        exit = scaleOutOfContainer(ScaleTransitionDirection.INWARDS)
+    ) {
+        VideosGridScreen(
+            videoViewModel,
+            bottomBarVisibility,
+            videoScreenListState,
+            navHostController,
+            showAlertDialog
+        )
+    }
+
+    FloatingProfileDialog(showAlertDialog, navHostController)
+}
+
+
+private fun onConfirmDelete(
+    audioSelectionInProgress: Boolean,
+    audioViewModel: AudioViewModel,
+    context: Context,
+    videoSelectionInProgress: Boolean,
+    videoViewModel: VideoViewModel,
+    photosViewModel: PhotosViewModel
+) {
+    if (audioSelectionInProgress) {
+        audioViewModel.deleteSelected(context)
+    } else if (videoSelectionInProgress) {
+        videoViewModel.deleteSelected(context)
+    } else {
+        photosViewModel.deleteSelected(context)
+    }
+
+    unSelectAllSelected(
+        audioSelectionInProgress,
+        audioViewModel,
+        videoSelectionInProgress,
+        videoViewModel,
+        photosViewModel
+    ).invoke()
 }
 
 
@@ -275,7 +470,7 @@ private fun trashResult(
         } else if (videoSelectionInProgress) {
             videoViewModel.removeVideosFromList(context)
         } else {
-            photosViewModel.removeImagesFromList(context)
+            photosViewModel.removeImagesFromList(context, "Deleted")
         }
     } else {
         if (audioSelectionInProgress) {
@@ -295,16 +490,19 @@ fun onClickDeleteButton(
     videoViewModel: VideoViewModel,
     photosViewModel: PhotosViewModel,
     context: Context,
-    trashLauncher: ManagedActivityResultLauncher<IntentSenderRequest, ActivityResult>
+    trashLauncher: ManagedActivityResultLauncher<IntentSenderRequest, ActivityResult>,
+    confirmDelete: MutableState<Boolean>
 ) {
-    if(audioSelectionInProgress) {
-        audioViewModel.moveToTrashSelectedAudios(context, trashLauncher)
-    }
-    else if(videoSelectionInProgress){
-        videoViewModel.moveToTrashSelectedVideos(context, trashLauncher)
-    }
-    else{
-        photosViewModel.moveToTrashSelectedImages(context, trashLauncher)
+    if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && Build.VERSION.SDK_INT < Build.VERSION_CODES.R)){
+        confirmDelete.value = true
+    } else {
+        if (audioSelectionInProgress) {
+            audioViewModel.moveToTrashSelectedAudios(context, trashLauncher)
+        } else if (videoSelectionInProgress) {
+            videoViewModel.moveToTrashSelectedVideos(context, trashLauncher)
+        } else {
+            photosViewModel.moveToTrashSelectedImages(context, trashLauncher)
+        }
     }
 }
 
@@ -317,17 +515,15 @@ fun onClickShareButton(
     context: Context,
     onClickUnSelectAll: () -> Unit
 ) {
-    if(audioSelectionInProgress) {
+    if (audioSelectionInProgress) {
         val shareIntent = audioViewModel.shareSelectedAudios()
         onClickUnSelectAll()
         context.startActivity(Intent.createChooser(shareIntent, "Share Audios"))
-    }
-    else if(videoSelectionInProgress){
+    } else if (videoSelectionInProgress) {
         val shareIntent = videoViewModel.shareSelectedVideos()
         onClickUnSelectAll()
         context.startActivity(Intent.createChooser(shareIntent, "Share Videos"))
-    }
-    else{
+    } else {
         val shareIntent = photosViewModel.shareSelectedImages()
         onClickUnSelectAll()
         context.startActivity(Intent.createChooser(shareIntent, "Share Photos"))

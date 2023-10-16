@@ -20,18 +20,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Cast
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material.icons.twotone.CenterFocusStrong
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -69,7 +64,6 @@ import androidx.navigation.NavHostController
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.littlebit.photos.model.ImageGroup
-import com.littlebit.photos.ui.navigation.Screens
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
 
 
@@ -203,30 +197,19 @@ fun Offset.coerceIn(minX: Float, maxX: Float, minY: Float, maxY: Float): Offset 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImageDetailsTopBar(navHostController: NavHostController) {
-    var isPoping by remember {
-        mutableStateOf(false)
-    }
+
     TopAppBar(
         title = {},
         navigationIcon = {
             IconButton(
                 onClick = {
-                    isPoping = true
-                    navHostController.popBackStack(Screens.HomeScreen.route, inclusive = false)
-                },
-                enabled = !isPoping
+                    navHostController.navigateUp()
+                }
             ) {
                 Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back Button")
             }
         },
         actions = {
-            IconButton(onClick = { /*TODO*/ }) {
-                Icon(imageVector = Icons.Outlined.Cast, contentDescription = "Cast")
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            IconButton(onClick = { /*TODO*/ }) {
-                Icon(imageVector = Icons.Outlined.MoreVert, contentDescription = "Options")
-            }
         },
         colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
         modifier = Modifier.background(
@@ -242,6 +225,7 @@ fun ImageDetailsTopBar(navHostController: NavHostController) {
 }
 
 
+
 @Composable
 fun ImageDetailsBottomBar(
     photosViewModel: PhotosViewModel,
@@ -255,13 +239,6 @@ fun ImageDetailsBottomBar(
     }
     val shareLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {}
-
-
-
-
-
-
-
 
 
     BottomAppBar(
@@ -288,17 +265,6 @@ fun ImageDetailsBottomBar(
         }
         Spacer(modifier = Modifier.weight(1f))
 
-        IconButton(onClick = { /*TODO*/ }) {
-            Icon(imageVector = Icons.Outlined.Tune, contentDescription = "Edit")
-        }
-        Spacer(modifier = Modifier.weight(1f))
-
-        IconButton(onClick = {
-
-        }) {
-            Icon(imageVector = Icons.TwoTone.CenterFocusStrong, contentDescription = "Lens")
-        }
-        Spacer(modifier = Modifier.weight(1f))
         IconButton(
             onClick = {
                 photosViewModel.moveToTrash(
@@ -347,6 +313,46 @@ fun ConfirmDeleteDialog(
                     .fillMaxWidth()
                     .clickable {
                         photosViewModel.deletePhoto(listIndex, imageIndex, context)
+                        showDeleteDialog.value = false
+                    }, contentAlignment = Alignment.Center
+            ) {
+                Text(text = "Delete", modifier = Modifier.padding(16.dp))
+            }
+            HorizontalDivider(Modifier.fillMaxWidth())
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        showDeleteDialog.value = false
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "Cancel", modifier = Modifier.padding(16.dp))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ConfirmDeleteSelectedDialog(
+    showDeleteDialog: MutableState<Boolean>,
+    onConfirm: () -> Unit,
+) {
+    AnimatedVisibility(visible = showDeleteDialog.value) {
+        ModalBottomSheet(
+            onDismissRequest = { showDeleteDialog.value = false },
+            sheetState = rememberModalBottomSheetState()
+        ) {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(text = "The picture will be deleted?", modifier = Modifier.padding(16.dp))
+            }
+            HorizontalDivider(Modifier.fillMaxWidth())
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        onConfirm()
                         showDeleteDialog.value = false
                     }, contentAlignment = Alignment.Center
             ) {

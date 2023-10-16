@@ -4,6 +4,7 @@ package com.littlebit.photos.ui.screens.videos.player
 
 import android.net.Uri
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -11,19 +12,24 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.media3.common.MediaItem
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import androidx.navigation.NavHostController
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
@@ -37,100 +43,113 @@ import kotlinx.coroutines.launch
 fun VideoScreen(
     navHostController: NavHostController,
     videoViewModel: VideoViewModel,
-    videoIndex: Int,
-    listIndex: Int
+    listIndex: Int,
+    videoIndex: Int
 ) {
-    val videoList = videoViewModel.videoGroups.collectAsState().value
+    val videoList by videoViewModel.videoGroups.collectAsStateWithLifecycle()
     val videoUriList = videoList[listIndex].videos.map { videoItem ->
         videoItem.uri
     }
-    val systemUiController = rememberSystemUiController()
-    systemUiController.isSystemBarsVisible = false
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        VideoPlayer(
-            uriList = videoUriList, startIndex = videoIndex, navHostController = navHostController, playerViewModel = viewModel()
+        XVideoPlayerScreen(
+            uriList = videoUriList,
+            startIndex = videoIndex,
+            navHostController = navHostController,
+            viewModel = viewModel()
         )
     }
 }
 
 
-@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-fun VideoPlayer(
+fun XVideoPlayerScreen(
     uriList: List<Uri?>,
     startIndex: Int,
     navHostController: NavHostController,
-    playerViewModel: VideoPlayerViewModel
+    viewModel: VideoPlayerViewModel,
 ) {
-    val currentUriIndex = rememberUpdatedState(startIndex)
-    val isPlaying = rememberUpdatedState(playerViewModel.isPlaying)
-    val playbackPosition = rememberUpdatedState(playerViewModel.playbackPosition)
-    val systemUiController = rememberSystemUiController()
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val player = remember {
-        ExoPlayer.Builder(context).build()
+    var backHandlerUsed by rememberSaveable {
+        mutableStateOf(false)
     }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val systemUiController = rememberSystemUiController()
+    val lifecycleController = LocalLifecycleOwner.current.lifecycle
     val playerView = remember {
         PlayerView(context)
     }
-    playerView.player = player
+    val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
 
 
-
-    val mediaItems = uriList.map {
-        val currentItem = MediaItem.fromUri(it!!)
-        currentItem
-    }.toMutableList()
-    player.setMediaItems(mediaItems, currentUriIndex.value, 0)
-    player.prepare()
-    player.seekTo(playbackPosition.value)
-
-    // Start or pause playback based on the stored state
-   if(!isPlaying.value){
-       player.play()
-   }
-
-
-
-    // AndroidView for displaying the video player
-    AndroidView(modifier = Modifier
-        .fillMaxSize()
-        .background(Color.Black)
-        .focusable()
-        .onKeyEvent {
-            playerView.dispatchKeyEvent(it.nativeKeyEvent)
-        },
+    AndroidView(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .focusable()
+            .onKeyEvent { event ->
+                playerView.dispatchKeyEvent(event.nativeKeyEvent)
+            },
         factory = {
             playerView.apply {
-                setControllerVisibilityListener(PlayerView.ControllerVisibilityListener {
-                    systemUiController.isSystemBarsVisible = it == 0
-                })
                 setShowRewindButton(false)
                 setShowFastForwardButton(false)
                 setShowSubtitleButton(true)
+                setControllerVisibilityListener(PlayerView.ControllerVisibilityListener {
+                    systemUiController.isSystemBarsVisible = it == 0
+                })
             }
         }
     )
 
 
-    DisposableEffect(player) {
-        onDispose {
-            player.release()
-            systemUiController.isStatusBarVisible = true
-            playerViewModel.currentUriIndex = currentUriIndex.value
-            playerViewModel.isPlaying = player.isPlaying
-            playerViewModel.playbackPosition = player.currentPosition
-            coroutineScope.launch {
-                delay(300)
-                navHostController.popBackStack()
-                systemUiController.isStatusBarVisible = true
-            }
+    BackHandler {
+        backHandlerUsed = true
+        scope.launch {
+            delay(300)
+            navHostController.popBackStack()
         }
     }
 
-    // Handle back press
+    DisposableEffect(Unit) {
+        val lifecycleObserver = object : DefaultLifecycleObserver {
+            override fun onPause(owner: LifecycleOwner) {
+                // Pause the player when the app goes into the background
+                viewModel.pause()
+            }
+
+            override fun onResume(owner: LifecycleOwner) {
+                // Resume the player when the app returns to the foreground
+                viewModel.resume()
+            }
+        }
+        lifecycleController.addObserver(lifecycleObserver)
+        onDispose {
+            if (backHandlerUsed) {
+                viewModel.releasePlayer()
+            } else {
+                viewModel.safePlayBackPosition()
+            }
+            lifecycleController.removeObserver(lifecycleObserver)
+        }
+    }
+
+
+    LaunchedEffect(playbackState) {
+        if (viewModel.isPlayerNull()) {
+            viewModel.initialisePlayer(context)
+            viewModel.setPlayer(playerView)
+            viewModel.setMediaItems(uriList, startIndex, 0)
+            viewModel.prepare()
+            viewModel.setPlayWhenReady(true)
+        } else {
+            viewModel.setPlayer(playerView)
+            systemUiController.isSystemBarsVisible = false
+        }
+    }
 }
+
+
+
 
 
