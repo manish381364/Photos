@@ -148,6 +148,7 @@ class MediaRepository {
                 }
             }
         }
+        isLoading.value = false
     }
 
 
@@ -440,5 +441,6 @@ class MediaRepository {
                 }
             }
         }
+        isLoading.value = false
     }
 }
