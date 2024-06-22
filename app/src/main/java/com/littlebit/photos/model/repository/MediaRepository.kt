@@ -148,6 +148,7 @@ class MediaRepository {
                 }
             }
         }
+        isLoading.value = false
     }
 
 
