@@ -39,7 +39,7 @@ class PhotosViewModel @Inject constructor(
 ) : ViewModel() {
     private val _photos = MutableStateFlow(mutableListOf<PhotoItem>())
     private val _photoGroups = MutableStateFlow(mutableListOf<ImageGroup>())
-    val isLoading = MutableStateFlow(true)
+    val isLoading = MutableStateFlow(false)
     val photoGroups = _photoGroups
     val photos = _photos
     val selectedImages = MutableStateFlow(0)
