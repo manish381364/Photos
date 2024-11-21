@@ -1,5 +1,6 @@
 package com.littlebit.photos.ui.screens.home
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -45,7 +46,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -484,6 +484,7 @@ private fun trashResult(
     }
 }
 
+@SuppressLint("ObsoleteSdkInt")
 fun onClickDeleteButton(
     audioSelectionInProgress: Boolean,
     audioViewModel: AudioViewModel,
