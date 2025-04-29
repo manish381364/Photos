@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "801069571637",
+    "project_id": "littlebit-bitmedia",
+    "storage_bucket": "littlebit-bitmedia.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:801069571637:android:957344aab5485abe819b7c",
+        "android_client_info": {
+          "package_name": "com.littlebit.photos"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "801069571637-i2k5a29rg1ig660s2hrld199keo9c0b8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.littlebit.bitmedia",
+            "certificate_hash": "5934879a3d27af6fe3edd1195259e319f725afa6"
+          }
+        },
+        {
+          "client_id": "801069571637-h694mlqqihvjlrqnhqjkv00tslvfrvkg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDai55y_bSFK9OHzXpYVK409oWklWDmMZA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "801069571637-h694mlqqihvjlrqnhqjkv00tslvfrvkg.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

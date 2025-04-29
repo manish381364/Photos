@@ -1,6 +1,5 @@
 package com.littlebit.photos.ui.navigation
 
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
@@ -21,12 +20,14 @@ import com.littlebit.photos.ui.screens.audio.player.PlayAudioViewModel
 import com.littlebit.photos.ui.screens.home.HomeScreen
 import com.littlebit.photos.ui.screens.images.PhotosViewModel
 import com.littlebit.photos.ui.screens.images.details.ImageDetailsScreen
+import com.littlebit.photos.ui.screens.loginSignUp.LoginScreen
+import com.littlebit.photos.ui.screens.loginSignUp.SignUpScreen
 import com.littlebit.photos.ui.screens.settings.SettingsScreen
 import com.littlebit.photos.ui.screens.settings.SettingsViewModel
 import com.littlebit.photos.ui.screens.videos.VideoViewModel
 import com.littlebit.photos.ui.screens.videos.player.VideoScreen
+import com.littlebit.photos.ui.screens.welcome.WelcomeScreen
 
-@RequiresApi(34)
 @Composable
 fun NavigationGraph(
     navController: NavHostController,
@@ -41,6 +42,57 @@ fun NavigationGraph(
         navController = navController,
         startDestination = startDestination,
     ) {
+        composable(
+            Screens.WelcomeScreen.route,
+            enterTransition = {
+                scaleIntoContainer()
+            },
+            exitTransition = {
+                scaleOutOfContainer(direction = ScaleTransitionDirection.INWARDS)
+            },
+            popEnterTransition = {
+                scaleIntoContainer(direction = ScaleTransitionDirection.OUTWARDS)
+            },
+            popExitTransition = {
+                scaleOutOfContainer()
+            }
+        ) {
+            WelcomeScreen(navHostController = navController,)
+        }
+        composable(
+            Screens.LoginScreen.route,
+            enterTransition = {
+                scaleIntoContainer()
+            },
+            exitTransition = {
+                scaleOutOfContainer(direction = ScaleTransitionDirection.INWARDS)
+            },
+            popEnterTransition = {
+                scaleIntoContainer(direction = ScaleTransitionDirection.OUTWARDS)
+            },
+            popExitTransition = {
+                scaleOutOfContainer()
+            }
+        ) {
+            LoginScreen(navHostController = navController,)
+        }
+        composable(
+            Screens.SignUpScreen.route,
+            enterTransition = {
+                scaleIntoContainer()
+            },
+            exitTransition = {
+                scaleOutOfContainer(direction = ScaleTransitionDirection.INWARDS)
+            },
+            popEnterTransition = {
+                scaleIntoContainer(direction = ScaleTransitionDirection.OUTWARDS)
+            },
+            popExitTransition = {
+                scaleOutOfContainer()
+            }
+        ) {
+            SignUpScreen(navHostController = navController,)
+        }
         composable(
             Screens.HomeScreen.route,
             enterTransition = {

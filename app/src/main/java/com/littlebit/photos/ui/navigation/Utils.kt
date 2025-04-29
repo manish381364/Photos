@@ -1,6 +1,9 @@
 package com.littlebit.photos.ui.navigation
 
 sealed class Screens(val route: String) {
+    data object WelcomeScreen : Screens("welcomeScreen")
+    data object LoginScreen : Screens("loginScreen")
+    data object SignUpScreen : Screens("signUpScreen")
     data object HomeScreen : Screens("homeScreen")
     data object SettingsScreen : Screens("settings")
     data object ImageDetailsScreen : Screens("imageDetailsScreen")
